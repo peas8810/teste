@@ -1,1 +1,6 @@
-
+pdfplumber
+nltk
+reportlab
+requests
+torch
+ipywidgets
