@@ -1,3 +1,4 @@
+import streamlit as st
 import pdfplumber
 from collections import Counter
 from nltk.corpus import stopwords
@@ -12,12 +13,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from datetime import datetime, timedelta
 import random
-from google.colab import files
-from IPython.display import display
-import ipywidgets as widgets
 
+# Baixar stopwords do NLTK
 nltk.download('stopwords')
-
 STOP_WORDS = set(stopwords.words('portuguese'))
 
 # URLs das APIs
@@ -165,62 +163,55 @@ def generate_report(suggested_phrases, top_keywords, tema, probabilidade, descri
 
     doc.build(content)
 
-# Função principal para análise do artigo
-def analyze_article(uploaded_file):
-    with open("uploaded_article.pdf", "wb") as f:
-        f.write(uploaded_file.getbuffer())
+# Interface com Streamlit
+def main():
+    st.title("CitatIA - Potencializador de Artigos - PEAS.Co")
+    st.write("Faça o upload do seu arquivo PDF para iniciar a análise.")
 
-    print("🔍 Analisando o arquivo...")
+    uploaded_file = st.file_uploader("Envie o arquivo PDF", type='pdf')
 
-    user_text = extract_text_from_pdf("uploaded_article.pdf")
-    tema = identify_theme(user_text)
+    if uploaded_file:
+        with open("uploaded_article.pdf", "wb") as f:
+            f.write(uploaded_file.getbuffer())
 
-    # Buscando artigos e frases populares com base no tema identificado
-    suggested_phrases = get_popular_phrases(tema, limit=10)
+        st.info("🔍 Analisando o arquivo...")
 
-    # Extrair as 10 palavras mais importantes dos artigos
-    top_keywords = extract_top_keywords(suggested_phrases)
+        user_text = extract_text_from_pdf("uploaded_article.pdf")
+        tema = identify_theme(user_text)
 
-    # Calculando a probabilidade com base nas referências encontradas
-    publication_count = len(suggested_phrases)
-    probabilidade, descricao = evaluate_article_relevance(publication_count)
+        # Buscando artigos e frases populares com base no tema identificado
+        suggested_phrases = get_popular_phrases(tema, limit=10)
 
-    # Gerar estatísticas de publicações
-    monthly_counts, proportion_per_100 = get_publication_statistics(publication_count)
+        # Extrair as 10 palavras mais importantes dos artigos
+        top_keywords = extract_top_keywords(suggested_phrases)
 
-    print(f"✅ Tema identificado: {tema}")
-    print(f"📈 Probabilidade do artigo ser uma referência com base em fatores como palavras-chave e área de pesquisa: {probabilidade}%")
-    print(f"ℹ️ {descricao}")
+        # Calculando a probabilidade com base nas referências encontradas
+        publication_count = len(suggested_phrases)
+        probabilidade, descricao = evaluate_article_relevance(publication_count)
 
-    print("<b>Estatísticas de Publicações:</b>")
-    print(f"<b>Publicações de artigos com mesmo tema:</b>")
-    for month, count in monthly_counts.items():
-        print(f"• {month}: {count} publicações")
-    print(f"<b>Proporção de publicações a cada 100 artigos:</b> {proportion_per_100:.2f}%")
+        # Gerar estatísticas de publicações
+        monthly_counts, proportion_per_100 = get_publication_statistics(publication_count)
 
-    print("<b>Palavras-chave mais citadas nos artigos mais acessados, baixados e/ou citados com base na tema:</b>")
-    if top_keywords:
-        for word in top_keywords:
-            print(f"• {word}")
-    else:
-        print("Nenhuma palavra-chave relevante encontrada.")
+        st.success(f"✅ Tema identificado: {tema}")
+        st.write(f"📈 Probabilidade do artigo ser uma referência com base em fatores como palavras-chave e área de pesquisa: {probabilidade}%")
+        st.write(f"ℹ️ {descricao}")
 
-    generate_report(suggested_phrases, top_keywords, tema, probabilidade, descricao, monthly_counts, proportion_per_100)
-    files.download("report.pdf")
+        st.write("<b>Estatísticas de Publicações:</b>", unsafe_allow_html=True)
+        st.write(f"<b>Publicações de artigos com mesmo tema:</b>", unsafe_allow_html=True)
+        for month, count in monthly_counts.items():
+            st.write(f"• {month}: {count} publicações")
+        st.write(f"<b>Proporção de publicações a cada 100 artigos:</b> {proportion_per_100:.2f}%", unsafe_allow_html=True)
 
-# Interface no Google Colab
-upload = widgets.FileUpload(accept='.pdf', multiple=False)
-display(upload)
-
-button = widgets.Button(description="Analisar Artigo")
-output = widgets.Output()
-
-def on_button_click(b):
-    with output:
-        if upload.value:
-            analyze_article(upload.value[list(upload.value.keys())[0]])
+        st.write("<b>Palavras-chave mais citadas nos artigos mais acessados, baixados e/ou citados com base na tema:</b>", unsafe_allow_html=True)
+        if top_keywords:
+            for word in top_keywords:
+                st.write(f"• {word}")
         else:
-            print("Por favor, carregue um arquivo PDF.")
+            st.write("Nenhuma palavra-chave relevante encontrada.")
 
-button.on_click(on_button_click)
-display(button, output)
+        generate_report(suggested_phrases, top_keywords, tema, probabilidade, descricao, monthly_counts, proportion_per_100)
+        with open("report.pdf", "rb") as file:
+            st.download_button("📥 Baixar Relatório", file, "report.pdf")
+
+if __name__ == "__main__":
+    main()
