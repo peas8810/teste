@@ -1,5 +1,4 @@
 import streamlit as st
-import pdfplumber
 from collections import Counter
 from nltk.corpus import stopwords
 from reportlab.lib.pagesizes import A4
@@ -11,6 +10,7 @@ import requests
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import pdfplumber
 from datetime import datetime, timedelta
 import random
 
