@@ -1,6 +1,7 @@
+numpy
 streamlit
 pdfplumber
 nltk
-reportlab
 requests
 torch
+reportlab
