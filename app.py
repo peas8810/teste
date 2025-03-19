@@ -1,9 +1,4 @@
 import streamlit as st
-from collections import Counter
-from nltk.corpus import stopwords
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import Paragraph, SimpleDocTemplate
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 import nltk
 import re
 import requests
@@ -11,8 +6,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pdfplumber
-from datetime import datetime, timedelta
 import random
+from collections import Counter
+from nltk.corpus import stopwords
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import Paragraph, SimpleDocTemplate
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from datetime import datetime, timedelta
+
 
 # Baixar stopwords do NLTK
 nltk.download('stopwords')
