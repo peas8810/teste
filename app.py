@@ -1,6 +1,3 @@
-# Instalação das dependências necessárias
-!pip install pdfplumber nltk reportlab requests torch
-
 import pdfplumber
 from collections import Counter
 from nltk.corpus import stopwords
