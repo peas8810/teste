@@ -14,9 +14,8 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from datetime import datetime, timedelta
 
-
-# Baixar stopwords do NLTK
 nltk.download('stopwords')
+
 STOP_WORDS = set(stopwords.words('portuguese'))
 
 # URLs das APIs
