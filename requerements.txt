@@ -1,10 +1,6 @@
-st
-reportlab
-ipywidgets
-numpy
-streamlit
-pdfplumber
-nltk
-requests
-torch
-reportlab
+streamlit==1.26.0
+pdfplumber==0.10.0
+nltk==3.8.1
+reportlab==4.0.4
+requests==2.31.0
+torch==2.1.0
