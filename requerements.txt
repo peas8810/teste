@@ -1,6 +1,10 @@
+st
+reportlab
+ipywidgets
+numpy
+streamlit
 pdfplumber
 nltk
-reportlab
 requests
 torch
-ipywidgets
+reportlab
