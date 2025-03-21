@@ -1,4 +1,4 @@
-streamlit as st
+streamlit
 random
 hashlib
 pdfplumber
