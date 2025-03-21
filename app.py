@@ -1,4 +1,6 @@
 import streamlit as st
+import random
+import hashlib
 import pdfplumber
 from collections import Counter
 from nltk.corpus import stopwords
@@ -12,8 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from datetime import datetime, timedelta
-import random
-import hashlib
+
 
 nltk.download('stopwords')
 
