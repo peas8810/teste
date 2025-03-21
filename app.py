@@ -20,7 +20,7 @@ nltk.download('stopwords')
 STOP_WORDS = set(stopwords.words('portuguese'))
 
 # 🔗 URL da API do Google Sheets
-URL_GOOGLE_SHEETS = "SUA_URL_DA_API_AQUI"
+URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyw8gip16LXdS6ZgjszHLgc7jARAjZbuHA42G1r28CYk7PjEi1opdLyyHKnY-4_j3Pt/exec"
 
 # URLs das APIs
 SEMANTIC_API = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -37,7 +37,7 @@ def salvar_email_google_sheets(nome, email, codigo_verificacao):
     }
     try:
         headers = {'Content-Type': 'application/json'}
-       response = requests.post("https://script.google.com/macros/s/AKfycbyw8gip16LXdS6ZgjszHLgc7jARAjZbuHA42G1r28CYk7PjEi1opdLyyHKnY-4_j3Pt/exec", json=dados, headers=headers))
+        response = requests.post(URL_GOOGLE_SHEETS, json=dados, headers=headers)
 
         if response.text.strip() == "Sucesso":
             st.success("✅ E-mail, nome e código registrados com sucesso!")
