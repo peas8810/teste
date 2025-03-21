@@ -1,18 +1,19 @@
 import streamlit as st
-import nltk
-import re
 import requests
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import pdfplumber
-import random
 from collections import Counter
 from nltk.corpus import stopwords
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import Paragraph, SimpleDocTemplate
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import nltk
+import re
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from datetime import datetime, timedelta
+import random
+import hashlib
 
 nltk.download('stopwords')
 
@@ -21,6 +22,49 @@ STOP_WORDS = set(stopwords.words('portuguese'))
 # URLs das APIs
 SEMANTIC_API = "https://api.semanticscholar.org/graph/v1/paper/search"
 CROSSREF_API = "https://api.crossref.org/works"
+
+# 🔗 URL da API gerada no Google Sheets
+URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1cFVQFBWzfLspxsJnEP6U5EEcjfseMijn8NY_fSuC7cw/edit?gid=0#gid=0"
+
+# =============================
+# 📋 Função para Salvar E-mails e Código de Verificação no Google Sheets
+# =============================
+def salvar_email_google_sheets(nome, email, codigo_verificacao):
+    dados = {
+        "nome": nome,
+        "email": email,
+        "codigo": codigo_verificacao
+    }
+    try:
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(URL_GOOGLE_SHEETS, json=dados, headers=headers)
+
+        if response.text.strip() == "Sucesso":
+            st.success("✅ E-mail, nome e código registrados com sucesso!")
+        else:
+            st.error(f"❌ Erro ao salvar dados no Google Sheets: {response.text}")
+    except Exception as e:
+        st.error(f"❌ Erro na conexão com o Google Sheets: {e}")
+
+# =============================
+# 🔎 Função para Verificar Código de Verificação na Planilha
+# =============================
+def verificar_codigo_google_sheets(codigo_digitado):
+    try:
+        response = requests.get(f"{URL_GOOGLE_SHEETS}?codigo={codigo_digitado}")
+        if response.text.strip() == "Valido":
+            return True
+        else:
+            return False
+    except Exception as e:
+        st.error(f"❌ Erro na conexão com o Google Sheets: {e}")
+        return False
+
+# =============================
+# 🔐 Função para Gerar Código de Verificação
+# =============================
+def gerar_codigo_verificacao(texto):
+    return hashlib.md5(texto.encode()).hexdigest()[:10].upper()
 
 # Função para obter artigos mais citados
 def get_popular_phrases(query, limit=10):
@@ -168,6 +212,16 @@ def main():
     st.title("CitatIA - Potencializador de Artigos - PEAS.Co")
     st.write("Faça o upload do seu arquivo PDF para iniciar a análise.")
 
+    st.subheader("📋 Registro de Usuário - Apenas para validação")
+    nome = st.text_input("Nome completo")
+    email = st.text_input("E-mail")
+
+    if st.button("Salvar Dados"):
+        if nome and email:
+            salvar_email_google_sheets(nome, email, "N/A")
+        else:
+            st.warning("⚠️ Por favor, preencha todos os campos.")
+
     uploaded_file = st.file_uploader("Envie o arquivo PDF", type='pdf')
 
     if uploaded_file:
@@ -209,9 +263,31 @@ def main():
         else:
             st.write("Nenhuma palavra-chave relevante encontrada.")
 
+        # Gerar e exibir link para download do relatório
+        codigo_verificacao = gerar_codigo_verificacao(user_text)
+        salvar_email_google_sheets(nome, email, codigo_verificacao)
+
+        st.success(f"Código de verificação gerado: **{codigo_verificacao}**")
+
         generate_report(suggested_phrases, top_keywords, tema, probabilidade, descricao, monthly_counts, proportion_per_100)
         with open("report.pdf", "rb") as file:
             st.download_button("📥 Baixar Relatório", file, "report.pdf")
 
+    # Verificação de código
+    st.header("Verificar Autenticidade")
+    codigo_digitado = st.text_input("Digite o código de verificação:")
+
+    if st.button("Verificar Código"):
+        if verificar_codigo_google_sheets(codigo_digitado):
+            st.success("✅ Documento Autêntico e Original!")
+        else:
+            st.error("❌ Código inválido ou documento falsificado.")
+
 if __name__ == "__main__":
     main()
+
+# Texto explicativo ao final da página
+    st.markdown("""
+    ---
+    Nosso avançado programa de potencialização de artigos, utiliza inteligência artificial para comparar textos com uma ampla base de dados composta pelos 100 maiores indexadores e repositórios globais. Powered By - PEAS.Co
+    """)
