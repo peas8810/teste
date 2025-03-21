@@ -1,4 +1,4 @@
-streamlit
+streamlit as st
 random
 hashlib
 pdfplumber
@@ -6,3 +6,5 @@ nltk
 re
 requests
 torch
+torch.nn as nn
+torch.nn.functional as F
