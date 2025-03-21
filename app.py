@@ -24,7 +24,7 @@ SEMANTIC_API = "https://api.semanticscholar.org/graph/v1/paper/search"
 CROSSREF_API = "https://api.crossref.org/works"
 
 # 🔗 URL da API gerada no Google Sheets
-URL_GOOGLE_SHEETS = "https://docs.google.com/spreadsheets/d/1cFVQFBWzfLspxsJnEP6U5EEcjfseMijn8NY_fSuC7cw/edit?gid=0#gid=0"
+URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyw8gip16LXdS6ZgjszHLgc7jARAjZbuHA42G1r28CYk7PjEi1opdLyyHKnY-4_j3Pt/exec"
 
 # =============================
 # 📋 Função para Salvar E-mails e Código de Verificação no Google Sheets
