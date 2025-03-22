@@ -21,7 +21,7 @@ nltk.download('stopwords')
 STOP_WORDS = set(stopwords.words('portuguese'))
 
 # 🔗 URL da API do Google Sheets
-URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyuhjfVpjc68l3emnFKvdxyZdylpE5Wy0PUA8YKO-grbJPQZPZdY0xoeHoix9hEoCTu/exec"
+URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyHRCrD5-A_JHtaUDXsGWQ22ul9ml5vvK3YYFzIE43jjCdip0dBMFH_Jmd8w971PLte/exec"
 
 # URLs das APIs
 SEMANTIC_API = "https://api.semanticscholar.org/graph/v1/paper/search"
