@@ -1,128 +1,125 @@
+# -*- coding: utf-8 -*-
+
+# ============================================
+# 📅 Importações
+# ============================================
 import streamlit as st
-from docx import Document
-from PIL import Image, ImageDraw, ImageFont
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import io
 import os
+import shutil
+import subprocess
+import zipfile
+import requests
+from io import BytesIO
+from PIL import Image
+from PyPDF2 import PdfMerger, PdfReader, PdfWriter
+from pdf2docx import Converter
+from pdf2image import convert_from_path
+import pytesseract
+import img2pdf
+import re
 import tempfile
+import time
+from typing import List
 
-# Configuração da página
-st.set_page_config(page_title="Conversor Word para PDF via Imagens", layout="wide")
+# Configuração do Streamlit
+st.set_page_config(page_title="Conversor de Documentos", page_icon="📄", layout="wide")
 
-# Título do aplicativo
-st.title("📄 Conversor Word para PDF via Imagens")
+# Diretório de trabalho
+@st.cache_resource
+def get_work_dir():
+    temp_dir = tempfile.mkdtemp(prefix="doc_converter_")
+    os.makedirs(temp_dir, exist_ok=True)
+    return temp_dir
 
-# Sidebar com informações
-with st.sidebar:
-    st.header("Sobre")
-    st.write("""
-    Este aplicativo converte documentos Word (.docx) em PDF, 
-    passando por uma etapa intermediária de conversão para imagens.
-    """)
+WORK_DIR = get_work_dir()
 
-# Função atualizada para renderizar texto como imagem
-def text_to_image(text, font_size=20, page_width=800):
-    try:
-        # Tentar carregar fonte Arial, caso não exista, usar padrão
+# OCR
+pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
+
+# ============================================
+# 🧼 Utilitários
+# ============================================
+def sanitize_filename(filename: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
+
+def salvar_arquivos(uploaded_files) -> List[str]:
+    caminhos = []
+    for uploaded_file in uploaded_files:
+        nome_limpo = sanitize_filename(uploaded_file.name)
+        caminho = os.path.join(WORK_DIR, nome_limpo)
+        with open(caminho, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        caminhos.append(caminho)
+    return caminhos
+
+def limpar_diretorio():
+    for filename in os.listdir(WORK_DIR):
         try:
-            font = ImageFont.truetype("arial.ttf", font_size)
-        except:
-            font = ImageFont.load_default(size=font_size)
-        
-        lines = text.split('\n')
-        line_heights = []
-        
-        # Método atualizado para calcular tamanho do texto
-        for line in lines:
-            bbox = font.getbbox(line)  # Novo método no Pillow 9+
-            line_height = bbox[3] - bbox[1]  # altura (y1, y2)
-            line_heights.append(line_height)
-        
-        total_height = sum(line_heights) + 20  # Margem
-        
-        img = Image.new('RGB', (page_width, total_height), color=(255, 255, 255))
-        d = ImageDraw.Draw(img)
-        
-        y = 10
-        for line, line_height in zip(lines, line_heights):
-            d.text((10, y), line, fill=(0, 0, 0), font=font)
-            y += line_height
-        
-        return img
-    
-    except Exception as e:
-        st.error(f"Erro ao converter texto em imagem: {str(e)}")
-        return None
+            file_path = os.path.join(WORK_DIR, filename)
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            st.error(f"Erro ao excluir {file_path}: {e}")
 
-# Função principal de conversão
-def convert_docx_to_pdf(docx_file, output_pdf):
-    try:
-        doc = Document(docx_file)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_pdf:
-            c = canvas.Canvas(tmp_pdf.name, pagesize=letter)
-            width, height = letter
-            
-            full_text = []
-            for para in doc.paragraphs:
-                if para.text.strip():
-                    full_text.append(para.text)
-            
-            document_text = '\n'.join(full_text)
-            
-            img = text_to_image(document_text, page_width=int(width)-100)
-            if img is None:
-                return None
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_img:
-                img.save(tmp_img.name, "PNG")
-                
-                c.drawImage(tmp_img.name, 50, height - img.height - 50, 
-                           width=img.width, height=img.height, preserveAspectRatio=True)
-                c.showPage()
-                c.save()
-                
-                os.unlink(tmp_img.name)
-        
-        return tmp_pdf.name
-    
-    except Exception as e:
-        st.error(f"Erro na conversão do documento: {str(e)}")
-        return None
+def criar_link_download(nome_arquivo: str, label: str):
+    caminho = os.path.join(WORK_DIR, nome_arquivo)
+    with open(caminho, "rb") as f:
+        st.download_button(label=label, data=f, file_name=nome_arquivo, mime="application/octet-stream")
 
-# Interface principal
-uploaded_file = st.file_uploader("Faça upload do arquivo Word (.docx)", type=["docx"])
+# ============================================
+# 🔄 Conversão Word → Imagem → PDF com PHP
+# ============================================
+def word_para_pdf_php():
+    st.header("📄 Word → Imagem → PDF (via PHPWord + DomPDF)")
+    arquivos = st.file_uploader("Carregue arquivos Word (.docx)", type=["docx"], accept_multiple_files=True)
 
-if uploaded_file is not None:
-    st.success("Arquivo carregado com sucesso!")
-    
-    # Configurações
-    with st.expander("Configurações"):
-        font_size = st.slider("Tamanho da fonte", 10, 30, 14)
-        page_margin = st.slider("Margem da página (px)", 50, 200, 100)
-    
-    if st.button("Converter para PDF"):
-        with st.spinner("Convertendo documento..."):
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmp_docx:
-                tmp_docx.write(uploaded_file.getbuffer())
-                tmp_docx_path = tmp_docx.name
-            
-            pdf_path = convert_docx_to_pdf(tmp_docx_path, "output.pdf")
-            
-            if pdf_path:
-                with open(pdf_path, "rb") as f:
-                    pdf_bytes = f.read()
-                
-                st.success("Conversão concluída com sucesso!")
-                st.download_button(
-                    label="⬇️ Baixar PDF",
-                    data=pdf_bytes,
-                    file_name="documento_convertido.pdf",
-                    mime="application/pdf"
-                )
-                
-                os.unlink(pdf_path)
-            os.unlink(tmp_docx_path)
-else:
-    st.info("Por favor, faça upload de um arquivo Word (.docx)")
+    if arquivos and st.button("Converter para PDF"):
+        with st.spinner("Convertendo arquivos com PHP..."):
+            for arquivo in arquivos:
+                nome_docx = sanitize_filename(arquivo.name)
+                nome_pdf = nome_docx.replace(".docx", ".pdf")
+                caminho_docx = os.path.join(WORK_DIR, nome_docx)
+                caminho_pdf = os.path.join(WORK_DIR, nome_pdf)
+
+                # Salva o arquivo
+                with open(caminho_docx, "wb") as f:
+                    f.write(arquivo.getbuffer())
+
+                # Chama o script PHP
+                try:
+                    resultado = subprocess.run(
+                        ["php", "/mnt/data/converter.php", caminho_docx, caminho_pdf],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+
+                    if resultado.returncode == 0 and os.path.exists(caminho_pdf):
+                        st.success(f"{nome_docx} convertido com sucesso!")
+                        criar_link_download(nome_pdf, f"📥 Baixar {nome_pdf}")
+                    else:
+                        st.error(f"Erro ao converter {nome_docx}.")
+                        st.text_area("Detalhes do erro", resultado.stderr)
+                except Exception as e:
+                    st.error(f"Erro ao chamar PHP: {str(e)}")
+
+# ============================================
+# 🏠 Interface Principal
+# ============================================
+def main():
+    st.title("📄 Conversor de Documentos com PHP")
+    st.sidebar.title("Menu")
+
+    opcao = st.sidebar.selectbox("Escolha a operação:", [
+        "Word para PDF (via PHPWord + DomPDF)"
+    ])
+
+    if opcao == "Word para PDF (via PHPWord + DomPDF)":
+        word_para_pdf_php()
+
+    if st.sidebar.button("🧹 Limpar arquivos temporários"):
+        limpar_diretorio()
+        st.sidebar.success("Arquivos temporários limpos!")
+
+if __name__ == "__main__":
+    main()
