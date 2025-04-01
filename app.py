@@ -1,7 +1,3 @@
-# ============================================
-# 📅 Importações
-# ============================================
-import streamlit as st
 import os
 import shutil
 import re
@@ -9,286 +5,360 @@ import zipfile
 from io import BytesIO
 from PIL import Image
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
+from pdf2docx import Converter
 from pdf2image import convert_from_path
 import pytesseract
 import img2pdf
+import streamlit as st
+from docx import Document
+from reportlab.pdfgen import canvas
 import tempfile
-import time
-import unicodedata
-import logging
-from typing import List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
 
-# Configuração de cache para melhor performance
+# Configurações iniciais
 st.set_page_config(page_title="Conversor de Documentos", page_icon="📄", layout="wide")
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# ============================================
-# 📁 Configuração de diretórios temporários
-# ============================================
-@st.cache_resource
-def get_work_dir():
-    """Cria e retorna um diretório temporário seguro para processamento"""
-    temp_dir = tempfile.mkdtemp(prefix="doc_converter_")
-    os.makedirs(temp_dir, exist_ok=True)
-    return temp_dir
-
-WORK_DIR = get_work_dir()
+# Diretório temporário
+WORK_DIR = tempfile.mkdtemp(prefix="doc_converter_")
+os.makedirs(WORK_DIR, exist_ok=True)
 
 # Configuração do Tesseract OCR
-pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
+pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 # ============================================
-# 🛠️ Utilitários Avançados
+# 🛠️ Funções Utilitárias
 # ============================================
-def sanitize_filename(filename: str) -> str:
-    """Sanitiza nomes de arquivos removendo caracteres especiais e normalizando"""
-    # Normaliza caracteres unicode (remove acentos)
-    filename = unicodedata.normalize('NFKD', filename).encode('ascii', 'ignore').decode('ascii')
-    
-    # Remove caracteres especiais
-    filename = re.sub(r'[^\w\-_. ]', '', filename)
-    
-    # Substitui espaços por underscores
-    filename = filename.replace(' ', '_')
-    
-    # Limita o tamanho do nome
-    max_length = 100
-    if len(filename) > max_length:
-        name, ext = os.path.splitext(filename)
-        filename = name[:max_length - len(ext)] + ext
-    
-    return filename
+def sanitize_filename(filename):
+    """Remove caracteres especiais do nome do arquivo"""
+    return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
 
-def salvar_arquivos(uploaded_files) -> List[str]:
-    """Salva arquivos carregados no diretório de trabalho com nomes sanitizados"""
+def salvar_arquivos(uploaded_files):
+    """Salva arquivos carregados no diretório de trabalho"""
     caminhos = []
     for uploaded_file in uploaded_files:
         nome_sanitizado = sanitize_filename(uploaded_file.name)
         caminho = os.path.join(WORK_DIR, nome_sanitizado)
-        
-        try:
-            with open(caminho, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            caminhos.append(caminho)
-        except Exception as e:
-            st.error(f"Erro ao salvar arquivo {uploaded_file.name}: {str(e)}")
-            logger.error(f"Erro ao salvar arquivo: {str(e)}")
-    
+        with open(caminho, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        caminhos.append(caminho)
     return caminhos
 
-def limpar_diretorio():
-    """Limpa o diretório de trabalho de forma segura"""
-    try:
-        for filename in os.listdir(WORK_DIR):
-            file_path = os.path.join(WORK_DIR, filename)
-            try:
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                st.warning(f"Não foi possível excluir {file_path}: {str(e)}")
-                logger.warning(f"Falha ao excluir {file_path}: {str(e)}")
-    except Exception as e:
-        st.error(f"Erro ao limpar diretório: {str(e)}")
-        logger.error(f"Erro ao limpar diretório: {str(e)}")
-
-def criar_link_download(nome_arquivo: str, label: str, mime_type: str = "application/octet-stream"):
+def criar_link_download(nome_arquivo, label, mime_type="application/octet-stream"):
     """Cria um botão de download para o arquivo processado"""
-    try:
-        file_path = os.path.join(WORK_DIR, nome_arquivo)
-        with open(file_path, "rb") as f:
-            st.download_button(
-                label=label,
-                data=f,
-                file_name=nome_arquivo,
-                mime=mime_type,
-                key=f"download_{nome_arquivo}_{time.time()}"  # Chave única para evitar caching
-            )
-    except Exception as e:
-        st.error(f"Erro ao criar link de download: {str(e)}")
-        logger.error(f"Erro ao criar link de download: {str(e)}")
-
-# ============================================
-# 🖥️ Conversão via LibreOffice
-# ============================================
-def converter_via_libreoffice(input_path: str, output_format: str) -> Optional[str]:
-    """
-    Converte documentos usando LibreOffice de forma segura
-    Formatos suportados: pdf, docx, odt, html, txt
-    """
-    try:
-        # Verifica se o arquivo de entrada existe
-        if not os.path.exists(input_path):
-            raise FileNotFoundError(f"Arquivo de entrada não encontrado: {input_path}")
-        
-        # Determina a extensão de saída
-        format_ext = {
-            'pdf': '.pdf',
-            'docx': '.docx',
-            'odt': '.odt',
-            'html': '.html',
-            'txt': '.txt'
-        }.get(output_format.lower(), '.pdf')
-        
-        # Cria caminho de saída
-        base_name = os.path.splitext(os.path.basename(input_path))[0]
-        output_path = os.path.join(WORK_DIR, f"{base_name}{format_ext}")
-        
-        # Comando de conversão
-        command = [
-            'libreoffice',
-            '--headless',
-            '--convert-to',
-            output_format,
-            '--outdir',
-            WORK_DIR,
-            input_path
-        ]
-        
-        # Executa o comando de forma segura
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=60  # Timeout de 60 segundos
+    file_path = os.path.join(WORK_DIR, nome_arquivo)
+    with open(file_path, "rb") as f:
+        st.download_button(
+            label=label,
+            data=f,
+            file_name=nome_arquivo,
+            mime=mime_type
         )
-        
-        if result.returncode != 0:
-            raise RuntimeError(f"LibreOffice retornou erro: {result.stderr}")
-        
-        if not os.path.exists(output_path):
-            raise FileNotFoundError(f"Arquivo de saída não gerado: {output_path}")
-        
-        return output_path
-        
-    except Exception as e:
-        logger.error(f"Erro na conversão com LibreOffice: {str(e)}")
-        st.error(f"Erro na conversão: {str(e)}")
-        return None
 
 # ============================================
 # 📄 Funções de Conversão
 # ============================================
 def word_para_pdf():
-    st.header("Word para PDF (.docx)")
-    arquivos = st.file_uploader(
-        "Carregue arquivos Word", 
-        type=["docx", "doc", "odt", "rtf"],
+    st.header("Word para PDF")
+    st.warning("Conversão básica de texto (sem formatação complexa)")
+    
+    uploaded_files = st.file_uploader(
+        "Carregue arquivos Word (.docx)",
+        type=["docx"],
         accept_multiple_files=True
     )
-
-    if arquivos and st.button("Converter para PDF"):
-        with st.spinner("Convertendo documentos..."):
-            for arquivo in arquivos:
-                try:
-                    # Salva o arquivo temporariamente
-                    input_path = os.path.join(WORK_DIR, sanitize_filename(arquivo.name))
-                    with open(input_path, "wb") as f:
-                        f.write(arquivo.getbuffer())
-                    
-                    # Converte usando LibreOffice
-                    output_path = converter_via_libreoffice(input_path, "pdf")
-                    
-                    if output_path:
-                        nome_pdf = os.path.basename(output_path)
-                        criar_link_download(nome_pdf, f"📥 Baixar {nome_pdf}", "application/pdf")
-                        st.success(f"Convertido: {arquivo.name} → {nome_pdf}")
-                    else:
-                        st.error(f"Falha na conversão: {arquivo.name}")
-                        
-                except Exception as e:
-                    st.error(f"Erro ao processar {arquivo.name}: {str(e)}")
-                    logger.error(f"Erro no processamento: {str(e)}")
+    
+    if uploaded_files and st.button("Converter para PDF"):
+        for uploaded_file in uploaded_files:
+            try:
+                # Extrai texto do DOCX
+                doc = Document(BytesIO(uploaded_file.getvalue()))
+                text = "\n".join([para.text for para in doc.paragraphs])
+                
+                # Cria PDF com ReportLab
+                buffer = BytesIO()
+                c = canvas.Canvas(buffer)
+                text_object = c.beginText(40, 800)
+                
+                for line in text.split('\n'):
+                    text_object.textLine(line)
+                
+                c.drawText(text_object)
+                c.save()
+                
+                # Salva o PDF
+                nome_base = os.path.splitext(uploaded_file.name)[0]
+                nome_saida = f"word_{nome_base}.pdf"
+                caminho_pdf = os.path.join(WORK_DIR, nome_saida)
+                
+                with open(caminho_pdf, "wb") as f:
+                    f.write(buffer.getvalue())
+                
+                st.success(f"Arquivo convertido: {nome_saida}")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}", "application/pdf")
+                
+            except Exception as e:
+                st.error(f"Erro ao converter {uploaded_file.name}: {str(e)}")
 
 def pdf_para_word():
     st.header("PDF para Word")
     uploaded_file = st.file_uploader(
-        "Carregue um arquivo PDF", 
+        "Carregue um arquivo PDF",
         type=["pdf"],
         accept_multiple_files=False
     )
-
+    
     if uploaded_file and st.button("Converter para Word"):
         try:
             with st.spinner("Convertendo PDF para Word..."):
-                # Salva o PDF temporariamente
-                input_path = os.path.join(WORK_DIR, sanitize_filename(uploaded_file.name))
-                with open(input_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                caminho = salvar_arquivos([uploaded_file])[0]
+                nome_base = os.path.splitext(os.path.basename(caminho))[0]
+                saida = os.path.join(WORK_DIR, f"{nome_base}.docx")
                 
-                # Converte para Word usando LibreOffice
-                output_path = converter_via_libreoffice(input_path, "docx")
+                # Usa ThreadPool para melhor performance
+                with ThreadPoolExecutor() as executor:
+                    future = executor.submit(Converter(caminho).convert, saida)
+                    future.result()
                 
-                if output_path:
-                    nome_docx = os.path.basename(output_path)
-                    criar_link_download(
-                        nome_docx, 
-                        f"📥 Baixar {nome_docx}",
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
-                    st.success("Conversão concluída!")
-                else:
-                    st.error("Falha na conversão")
-                    
+                st.success("Conversão concluída!")
+                criar_link_download(
+                    f"{nome_base}.docx", 
+                    f"Baixar {nome_base}.docx",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
         except Exception as e:
             st.error(f"Erro na conversão: {str(e)}")
-            logger.error(f"Erro na conversão PDF para Word: {str(e)}")
+
+def pdf_para_jpg():
+    st.header("PDF para JPG")
+    uploaded_file = st.file_uploader(
+        "Carregue um arquivo PDF",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Converter para JPG"):
+        try:
+            caminho = salvar_arquivos([uploaded_file])[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            
+            imagens = convert_from_path(caminho)
+            
+            # Cria um ZIP com todas as imagens
+            zip_nome = f"pdf_images_{nome_base}.zip"
+            zip_path = os.path.join(WORK_DIR, zip_nome)
+            
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for i, img in enumerate(imagens):
+                    img_nome = f"{nome_base}_pag{i+1}.jpg"
+                    img_path = os.path.join(WORK_DIR, img_nome)
+                    img.save(img_path, "JPEG", quality=90)
+                    zipf.write(img_path, img_nome)
+            
+            st.success(f"Convertido {len(imagens)} páginas!")
+            criar_link_download(zip_nome, "Baixar todas as imagens (ZIP)", "application/zip")
+                
+        except Exception as e:
+            st.error(f"Erro ao converter PDF para imagens: {str(e)}")
+
+def juntar_pdf():
+    st.header("Juntar PDFs")
+    uploaded_files = st.file_uploader(
+        "Carregue os PDFs para juntar",
+        type=["pdf"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and len(uploaded_files) >= 2 and st.button("Juntar PDFs"):
+        try:
+            caminhos = salvar_arquivos(uploaded_files)
+            nome_saida = "merged_resultado.pdf"
+            saida = os.path.join(WORK_DIR, nome_saida)
+            
+            merger = PdfMerger()
+            for c in caminhos:
+                merger.append(c)
+            merger.write(saida)
+            merger.close()
+            
+            st.success("PDFs unidos com sucesso!")
+            criar_link_download(nome_saida, f"Baixar {nome_saida}", "application/pdf")
+                
+        except Exception as e:
+            st.error(f"Erro ao unir PDFs: {str(e)}")
+
+def dividir_pdf():
+    st.header("Dividir PDF")
+    uploaded_file = st.file_uploader(
+        "Carregue um PDF para dividir",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Dividir PDF"):
+        try:
+            caminho = salvar_arquivos([uploaded_file])[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            
+            reader = PdfReader(caminho)
+            
+            # Cria um ZIP com todas as páginas
+            zip_nome = f"split_{nome_base}.zip"
+            zip_path = os.path.join(WORK_DIR, zip_nome)
+            
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for i, page in enumerate(reader.pages):
+                    writer = PdfWriter()
+                    writer.add_page(page)
+                    nome_saida = f"{nome_base}_pag{i+1}.pdf"
+                    out_path = os.path.join(WORK_DIR, nome_saida)
+                    
+                    with open(out_path, "wb") as f:
+                        writer.write(f)
+                    
+                    zipf.write(out_path, nome_saida)
+            
+            st.success(f"PDF dividido em {len(reader.pages)} páginas!")
+            criar_link_download(zip_nome, "Baixar todas as páginas (ZIP)", "application/zip")
+                
+        except Exception as e:
+            st.error(f"Erro ao dividir PDF: {str(e)}")
+
+def ocr_pdf():
+    st.header("OCR em PDF")
+    uploaded_file = st.file_uploader(
+        "Carregue um PDF para extrair texto",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Extrair Texto (OCR)"):
+        try:
+            caminho = salvar_arquivos([uploaded_file])[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            nome_saida = f"ocr_{nome_base}.txt"
+            txt_path = os.path.join(WORK_DIR, nome_saida)
+            
+            imagens = convert_from_path(caminho)
+            texto = ""
+            
+            progress_bar = st.progress(0)
+            for i, img in enumerate(imagens):
+                progress_bar.progress((i + 1) / len(imagens))
+                texto += f"\n\n--- Página {i+1} ---\n\n"
+                texto += pytesseract.image_to_string(img, lang='por')
+            
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(texto)
+            
+            progress_bar.empty()
+            st.success("Texto extraído com sucesso!")
+            criar_link_download(nome_saida, "Baixar texto extraído", "text/plain")
+                
+        except Exception as e:
+            st.error(f"Erro no OCR: {str(e)}")
+
+def ocr_imagem():
+    st.header("OCR em Imagens")
+    uploaded_files = st.file_uploader(
+        "Carregue imagens para extrair texto",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and st.button("Extrair Texto (OCR)"):
+        try:
+            caminhos = salvar_arquivos(uploaded_files)
+            nome_saida = "ocr_images.txt"
+            txt_path = os.path.join(WORK_DIR, nome_saida)
+            
+            texto = ""
+            progress_bar = st.progress(0)
+            
+            for i, caminho in enumerate(caminhos):
+                progress_bar.progress((i + 1) / len(caminhos))
+                img = Image.open(caminho)
+                texto += f"\n\n--- Imagem {i+1}: {os.path.basename(caminho)} ---\n\n"
+                texto += pytesseract.image_to_string(img, lang='por')
+            
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(texto)
+            
+            progress_bar.empty()
+            st.success("Texto extraído com sucesso!")
+            criar_link_download(nome_saida, "Baixar texto extraído", "text/plain")
+                
+        except Exception as e:
+            st.error(f"Erro no OCR: {str(e)}")
+
+def jpg_para_pdf():
+    st.header("Imagens para PDF")
+    uploaded_files = st.file_uploader(
+        "Carregue imagens para converter em PDF",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and st.button("Converter para PDF"):
+        try:
+            caminhos = salvar_arquivos(uploaded_files)
+            nome_saida = "images_combined.pdf"
+            caminho_pdf = os.path.join(WORK_DIR, nome_saida)
+            
+            with open(caminho_pdf, "wb") as f:
+                f.write(img2pdf.convert([Image.open(img).filename for img in caminhos]))
+            
+            st.success("PDF criado com sucesso!")
+            criar_link_download(nome_saida, "Baixar PDF", "application/pdf")
+                
+        except Exception as e:
+            st.error(f"Erro ao converter imagens para PDF: {str(e)}")
 
 # ============================================
 # 🏠 Interface Principal
 # ============================================
 def main():
-    st.title("📄 Conversor de Documentos (LibreOffice)")
-    st.markdown("""
-    Ferramenta para conversão entre diversos formatos de documentos usando LibreOffice.
-    """)
-
+    st.title("📄 Conversor de Documentos")
+    
     # Menu lateral
-    st.sidebar.title("Menu")
-    opcao = st.sidebar.selectbox(
-        "Selecione a operação",
-        [
-            "Word para PDF",
-            "PDF para Word",
-            "PDF para JPG",
-            "Juntar PDFs",
-            "Dividir PDF",
-            "OCR em PDF",
-            "OCR em Imagens",
-            "Imagens para PDF",
-            "PDF para PDF/A"
-        ]
-    )
-
-    # Limpar arquivos temporários
-    if st.sidebar.button("Limpar arquivos temporários"):
-        limpar_diretorio()
-        st.sidebar.success("Arquivos temporários removidos!")
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("""
-    **Requisitos:**
-    - LibreOffice instalado
-    - Tesseract OCR (para funções de OCR)
-    - Ghostscript (para PDF/A)
-    """)
-
-    # Roteamento das funções
+    with st.sidebar:
+        st.title("Menu")
+        opcao = st.selectbox(
+            "Selecione a operação",
+            [
+                "Word para PDF",
+                "PDF para Word",
+                "PDF para JPG",
+                "Juntar PDFs",
+                "Dividir PDF",
+                "OCR em PDF",
+                "OCR em Imagens",
+                "Imagens para PDF"
+            ]
+        )
+        
+        st.markdown("---")
+        if st.button("Limpar arquivos temporários"):
+            shutil.rmtree(WORK_DIR)
+            os.makedirs(WORK_DIR, exist_ok=True)
+            st.success("Arquivos temporários removidos!")
+    
+    # Roteamento
     if opcao == "Word para PDF":
         word_para_pdf()
     elif opcao == "PDF para Word":
         pdf_para_word()
-    # ... (outras funções mantidas como no código original)
+    elif opcao == "PDF para JPG":
+        pdf_para_jpg()
+    elif opcao == "Juntar PDFs":
+        juntar_pdf()
+    elif opcao == "Dividir PDF":
+        dividir_pdf()
+    elif opcao == "OCR em PDF":
+        ocr_pdf()
+    elif opcao == "OCR em Imagens":
+        ocr_imagem()
+    elif opcao == "Imagens para PDF":
+        jpg_para_pdf()
 
 if __name__ == "__main__":
-    # Verifica se o LibreOffice está instalado
-    if not shutil.which("libreoffice"):
-        st.error("LibreOffice não está instalado no sistema. Esta aplicação requer LibreOffice para funcionar.")
-        st.stop()
-    
     main()
