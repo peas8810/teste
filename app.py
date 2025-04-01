@@ -61,20 +61,21 @@ def criar_link_download(nome_arquivo, label):
 def word_para_pdf():
     st.header("Word para PDF")
     uploaded_files = st.file_uploader(
-        "Carregue arquivos Word (.doc, .docx)",
-        type=["doc", "docx"],
+        "Carregue arquivos Word (.doc, .docx, .odt)",
+        type=["doc", "docx", "odt"],
         accept_multiple_files=True
     )
     
     if uploaded_files and st.button("Converter para PDF"):
         try:
-            # Tenta importar a biblioteca python-docx
-            from docx import Document
-            from docx2pdf import convert
+            from unoserver import UnoConverter
         except ImportError:
-            st.error("Bibliotecas necessárias não encontradas. Instale com: pip install python-docx docx2pdf")
+            st.error("Biblioteca unoserver não encontrada. Instale com: pip install unoserver")
             return
             
+        # Inicia o servidor UNO em segundo plano
+        conv = UnoConverter()
+        
         caminhos = salvar_arquivos(uploaded_files)
         for caminho in caminhos:
             nome_base = os.path.splitext(os.path.basename(caminho))[0]
@@ -86,8 +87,8 @@ def word_para_pdf():
                 os.remove(saida)
             
             try:
-                # Converte usando docx2pdf
-                convert(caminho, saida)
+                # Converte usando unoserver
+                conv.convert(inpath=caminho, outpath=saida, convert_to="pdf")
                 
                 if os.path.exists(saida):
                     st.success(f"Arquivo convertido: {nome_saida}")
@@ -96,6 +97,9 @@ def word_para_pdf():
                     st.error(f"Falha ao converter: {caminho}")
             except Exception as e:
                 st.error(f"Erro na conversão: {str(e)}")
+        finally:
+            # Encerra o servidor UNO
+            conv.__del__()
 
 def pdf_para_word():
     st.header("PDF para Word")
