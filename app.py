@@ -119,169 +119,53 @@ def criar_link_download(nome_arquivo: str, label: str, mime_type: str = "applica
     except Exception as e:
         st.error(f"Erro ao criar link de download: {str(e)}")
 
-# ============================================
-# 🔑 Autenticação com Microsoft Graph (Melhorada)
-# ============================================
-@st.cache_data(ttl=3600)  # Cache do token por 1 hora
-def obter_token():
-    """Obtém token de acesso com suas credenciais"""
-    try:
-        data = {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "scope": SCOPE,
-            "grant_type": "client_credentials"
-        }
-        
-        response = requests.post(AUTHORITY, data=data)
-        response.raise_for_status()
-        
-        token = response.json().get("access_token")
-        if not token:
-            st.error("Token não recebido na resposta")
-            return None
-            
-        return token
-    except Exception as e:
-        st.error(f"Erro na autenticação: {str(e)}")
-        return None
-# ============================================
-# 📄 Word → PDF via Microsoft Graph (Melhorada)
-# ============================================
-def upload_arquivo_graph(token: str, file_content: bytes, file_name: str) -> Tuple[bool, str]:
-    """Faz upload de arquivo para o Microsoft Graph"""
-    try:
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/octet-stream"
-        }
-        
-        upload_url = GRAPH_ENDPOINT.format(path=file_name)
-        response = requests.put(upload_url, headers=headers, data=file_content, timeout=30)
-        
-        if response.status_code in (200, 201):
-            return True, response.json().get("id", "")
-        else:
-            error_msg = response.json().get("error", {}).get("message", "Erro desconhecido")
-            return False, f"Status {response.status_code}: {error_msg}"
-    except Exception as e:
-        return False, str(e)
-
-def converter_word_pdf_graph(token: str, file_id: str, output_name: str) -> Tuple[bool, bytes]:
-    """Converte documento Word para PDF usando Microsoft Graph"""
-    try:
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        convert_url = f"https://graph.microsoft.com/v1.0/me/drive/items/{file_id}/content?format=pdf"
-        response = requests.get(convert_url, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            return True, response.content
-        else:
-            error_msg = response.json().get("error", {}).get("message", "Erro desconhecido")
-            return False, f"Status {response.status_code}: {error_msg}".encode()
-    except Exception as e:
-        return False, str(e).encode()
-
-# ============================================
-# 📄 Funções de Conversão Word para PDF (Corrigidas)
-# ============================================
-def sanitizar_nome_arquivo(nome):
-    """Remove caracteres especiais do nome do arquivo"""
-    return re.sub(r'[^a-zA-Z0-9_.-]', '_', nome)
-
-def upload_arquivo(token, file_content, file_name):
-    """Faz upload do arquivo para o OneDrive corporativo"""
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/octet-stream"
-    }
-    
-    # Usar o endpoint correto para aplicações
-    upload_url = f"{GRAPH_ENDPOINT}/drive/root:/ConversorTemp/{file_name}:/content"
-    
-    response = requests.put(upload_url, headers=headers, data=file_content)
-    
-    if response.status_code in (200, 201):
-        return True, response.json().get("id")
-    else:
-        error_msg = response.json().get("error", {}).get("message", "Erro desconhecido")
-        return False, error_msg
-
-def converter_para_pdf(token, file_id):
-    """Converte arquivo Word para PDF"""
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-    
-    convert_url = f"{GRAPH_ENDPOINT}/drive/items/{file_id}/content?format=pdf"
-    response = requests.get(convert_url, headers=headers)
-    
-    if response.status_code == 200:
-        return response.content
-    else:
-        raise Exception(f"Erro na conversão: {response.status_code}")
-
 def word_para_pdf():
-    st.title("Conversor Word para PDF")
-    st.markdown("""
-    Converta seus arquivos Word (.docx) para PDF usando o Microsoft Graph API
-    """)
-    
+    st.title("Conversor Word → PDF (sem LibreOffice)")
+    st.markdown("Transforma arquivos `.docx` em PDF convertendo o texto em imagens.")
+
     arquivos = st.file_uploader(
-        "Selecione arquivos .docx", 
-        type=["docx"], 
-        accept_multiple_files=True,
-        help="Arquivos com até 15MB cada"
+        "Carregue arquivos .docx",
+        type=["docx"],
+        accept_multiple_files=True
     )
-    
+
     if not arquivos:
         return
-    
-    if st.button("Converter para PDF"):
-        token = obter_token()
-        if not token:
-            st.error("Falha na autenticação. Verifique as credenciais.")
-            return
-            
+
+    if st.button("Converter para PDF (Imagens)"):
         with st.spinner("Processando arquivos..."):
             for arquivo in arquivos:
                 try:
-                    # 1. Preparar nome do arquivo
-                    nome_limpo = sanitizar_nome_arquivo(arquivo.name)
+                    nome_base = os.path.splitext(arquivo.name)[0]
+                    docx_path = os.path.join(WORK_DIR, sanitize_filename(arquivo.name))
+
+                    with open(docx_path, "wb") as f:
+                        f.write(arquivo.read())
+
+                    doc = Document(docx_path)
+                    texto = "\n".join([p.text for p in doc.paragraphs if p.text.strip() != ""])
                     
-                    # 2. Fazer upload
-                    sucesso, resultado = upload_arquivo(token, arquivo.getvalue(), nome_limpo)
-                    
-                    if not sucesso:
-                        st.error(f"Erro no upload: {resultado}")
+                    if not texto.strip():
+                        st.warning(f"{arquivo.name} está vazio ou sem texto legível.")
                         continue
-                        
-                    # 3. Converter para PDF
-                    pdf_content = converter_para_pdf(token, resultado)
-                    
-                    # 4. Salvar resultado temporário
-                    nome_pdf = os.path.splitext(nome_limpo)[0] + ".pdf"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                        tmp.write(pdf_content)
-                        tmp_path = tmp.name
-                    
-                    # 5. Criar link de download
-                    with open(tmp_path, "rb") as f:
-                        st.download_button(
-                            label=f"Baixar {nome_pdf}",
-                            data=f,
-                            file_name=nome_pdf,
-                            mime="application/pdf"
-                        )
-                    
-                    st.success(f"Conversão concluída: {nome_limpo}")
-                    
+
+                    # Converte texto para imagem
+                    img = render_text_to_image(texto)
+
+                    # Salva imagem temporária
+                    img_path = os.path.join(WORK_DIR, f"{nome_base}.jpg")
+                    img.save(img_path, "JPEG")
+
+                    # Converte imagem para PDF
+                    pdf_path = os.path.join(WORK_DIR, f"{nome_base}.pdf")
+                    with open(pdf_path, "wb") as f:
+                        f.write(img2pdf.convert(img_path))
+
+                    # Cria botão de download
+                    criar_link_download(f"{nome_base}.pdf", f"📥 Baixar {nome_base}.pdf", "application/pdf")
+                    st.success(f"{arquivo.name} convertido com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro ao processar {arquivo.name}: {str(e)}")
+                    st.error(f"Erro ao converter {arquivo.name}: {str(e)}")
 
 # ============================================
 # 📤 Outras Funcionalidades (Melhoradas)
