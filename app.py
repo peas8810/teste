@@ -122,12 +122,11 @@ def criar_link_download(nome_arquivo: str, label: str, mime_type: str = "applica
 # 🔑 Autenticação com Microsoft Graph (Melhorada)
 # ============================================
 @st.cache_data(ttl=3600)  # Cache do token por 1 hora
-def obter_token() -> Optional[str]:
-    """Obtém token de acesso para Microsoft Graph com tratamento de erros"""
+def obter_token():
     try:
         data = {
             "client_id": CLIENT_ID,
-            "scope": SCOPE,
+            "scope": "https://graph.microsoft.com/.default",
             "client_secret": CLIENT_SECRET,
             "grant_type": "client_credentials"
         }
@@ -139,12 +138,14 @@ def obter_token() -> Optional[str]:
         resposta = requests.post(AUTHORITY, data=data, headers=headers, timeout=10)
         resposta.raise_for_status()
         
-        return resposta.json().get("access_token")
-    except requests.exceptions.RequestException as e:
-        st.error(f"Erro na autenticação com Microsoft Graph: {str(e)}")
-        return None
+        token = resposta.json().get("access_token")
+        if not token:
+            st.error("Token de acesso não recebido")
+            return None
+            
+        return token
     except Exception as e:
-        st.error(f"Erro inesperado ao obter token: {str(e)}")
+        st.error(f"Erro na autenticação: {str(e)}")
         return None
 
 # ============================================
@@ -195,6 +196,7 @@ def word_para_pdf():
     if arquivos and st.button("Converter para PDF"):
         token = obter_token()
         if not token:
+            st.error("Falha na autenticação")
             return
 
         headers = {
@@ -203,49 +205,41 @@ def word_para_pdf():
         }
 
         for arquivo in arquivos:
-            nome_original = arquivo.name
-            nome_limpo = sanitize_filename(nome_original)
+            nome_limpo = sanitize_filename(arquivo.name)
             nome_base = os.path.splitext(nome_limpo)[0]
             pdf_nome = f"{nome_base}.pdf"
 
-            # Usar o endpoint de upload para aplicações (não /me)
-            upload_url = f"https://graph.microsoft.com/v1.0/sites/root/drive/root:/{nome_limpo}:/content"
-            
             try:
-                # Fazer upload do arquivo
+                # 1. Upload para local temporário
+                upload_url = "https://graph.microsoft.com/v1.0/drive/root:/ConversorTemp/" + nome_limpo + ":/content"
+                
                 upload = requests.put(
                     upload_url,
                     headers=headers,
-                    data=arquivo.getbuffer(),
-                    timeout=30
+                    data=arquivo.getvalue()
                 )
 
-                if upload.status_code in (200, 201):
-                    file_id = upload.json().get("id")
-                    
-                    # Converter para PDF
-                    pdf_url = f"https://graph.microsoft.com/v1.0/sites/root/drive/items/{file_id}/content?format=pdf"
-                    pdf_res = requests.get(
-                        pdf_url,
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=30
-                    )
-
-                    if pdf_res.status_code == 200:
-                        pdf_path = os.path.join(WORK_DIR, pdf_nome)
-                        with open(pdf_path, "wb") as f:
-                            f.write(pdf_res.content)
-                        st.success(f"PDF gerado: {pdf_nome}")
-                        criar_link_download(pdf_nome, f"📅 Baixar {pdf_nome}")
-                    else:
-                        error_msg = pdf_res.json().get("error", {}).get("message", "Erro desconhecido")
-                        st.error(f"Erro ao baixar PDF: {error_msg} (status {pdf_res.status_code})")
-                else:
+                if upload.status_code not in (200, 201):
                     error_msg = upload.json().get("error", {}).get("message", "Erro desconhecido")
-                    st.error(f"Erro ao fazer upload: {error_msg} (status {upload.status_code})")
+                    raise Exception(f"Upload falhou: {error_msg}")
+
+                # 2. Converter para PDF
+                file_id = upload.json().get("id")
+                pdf_url = f"https://graph.microsoft.com/v1.0/drive/items/{file_id}/content?format=pdf"
+                
+                pdf_res = requests.get(pdf_url, headers=headers)
+                if pdf_res.status_code != 200:
+                    raise Exception("Conversão falhou")
+
+                # 3. Salvar resultado
+                with open(os.path.join(WORK_DIR, pdf_nome), "wb") as f:
+                    f.write(pdf_res.content)
+
+                st.success(f"Conversão concluída: {pdf_nome}")
+                criar_link_download(pdf_nome, f"📥 Baixar {pdf_nome}")
 
             except Exception as e:
-                st.error(f"Erro ao processar {nome_original}: {str(e)}")
+                st.error(f"Erro ao processar {arquivo.name}: {str(e)}")
 
 # ============================================
 # 📤 Outras Funcionalidades (Melhoradas)
