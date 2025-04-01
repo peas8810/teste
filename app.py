@@ -1,36 +1,37 @@
+# ============================================
+# 📥 Importações
+# ============================================
 import os
 import shutil
+import time
 import zipfile
-import subprocess
 import uuid
-import streamlit as st
-from PyPDF2 import PdfMerger, PdfReader, PdfWriter
-from pdf2docx import Converter
-from PIL import Image
-import pytesseract
-from pdf2image import convert_from_path
-import img2pdf
+import mammoth
+from weasyprint import HTML
+from IPython.display import display
+import ipywidgets as widgets
+from google.colab import files
 
-# Configurações iniciais
+# ============================================
+# 📂 Configuração de Diretório
+# ============================================
 WORK_DIR = "documentos"
+if os.path.exists(WORK_DIR):
+    shutil.rmtree(WORK_DIR)
 os.makedirs(WORK_DIR, exist_ok=True)
 
 # Configura o Tesseract OCR
 pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
-def salvar_arquivos(uploaded_files):
+# ============================================
+# 💾 Função para Salvar Arquivos
+# ============================================
+def salvar_arquivos(upload_widget):
     caminhos = []
-    for uploaded_file in uploaded_files:
-        nome_base, extensao = os.path.splitext(uploaded_file.name)
-        nome_limpo = (nome_base.replace(" ", "_")
-                      .replace("ç", "c").replace("ã", "a")
-                      .replace("á", "a").replace("é", "e")
-                      .replace("í", "i").replace("ó", "o")
-                      .replace("ú", "u").replace("ñ", "n")) + extensao.lower()
-        
-        caminho = os.path.join(WORK_DIR, nome_limpo)
+    for nome, arquivo in upload_widget.value.items():
+        caminho = os.path.join(WORK_DIR, nome)
         with open(caminho, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+            f.write(arquivo["content"])
         caminhos.append(caminho)
     return caminhos
 
@@ -53,40 +54,38 @@ def criar_link_download(nome_arquivo, label):
         )
 # Funções de conversão
 # Função Word para PDF usando unoserver
-def word_para_pdf():
-    st.header("Word para PDF")
-    uploaded_files = st.file_uploader(
-        "Carregue arquivos Word (.doc, .docx, .odt, .rtf)",
-        type=["doc", "docx", "odt", "rtf"],
-        accept_multiple_files=True
-    )
+def word_para_pdf_interface():
+    upload = widgets.FileUpload(accept='.docx', multiple=False)
+    botao = widgets.Button(description="Converter DOCX → PDF", button_style='success')
+    output = widgets.Output()
 
-    if uploaded_files and st.button("Converter para PDF"):
-        caminhos = salvar_arquivos(uploaded_files)
-        
-        for caminho in caminhos:
-            nome_base = os.path.splitext(os.path.basename(caminho))[0]
-            nome_saida = f"word_{nome_base}.pdf"
-            saida = os.path.join(WORK_DIR, nome_saida)
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            for caminho in caminhos:
+                nome_base = os.path.splitext(os.path.basename(caminho))[0]
+                saida = os.path.join(WORK_DIR, f"word_{nome_base}.pdf")
 
-            try:
-                # Usa unoserver-client para conversão
-                subprocess.run([
-                    "unoserver", "--convert-to", "pdf", "--output-dir", WORK_DIR, caminho
-                ], check=True)
+                try:
+                    with open(caminho, "rb") as docx_file:
+                        result = mammoth.convert_to_html(docx_file)
+                        html = result.value
 
-                # Renomeia a saída para usar prefixo word_
-                saida_temporario = os.path.join(WORK_DIR, f"{nome_base}.pdf")
-                if os.path.exists(saida_temporario):
-                    os.rename(saida_temporario, saida)
+                    HTML(string=html).write_pdf(saida)
 
-                if os.path.exists(saida):
-                    st.success(f"✅ PDF gerado: {nome_saida}")
-                    criar_link_download(nome_saida, f"Baixar {nome_saida}")
-                else:
-                    st.error(f"❌ Falha ao converter: {caminho}")
-            except Exception as e:
-                st.error(f"Erro durante a conversão: {str(e)}")
+                    if os.path.exists(saida):
+                        display(widgets.HTML(f"<b>📄 PDF Gerado:</b> {saida}"))
+                        files.download(saida)
+                    else:
+                        print(f"❌ Falha ao gerar PDF: {saida}")
+
+                except Exception as e:
+                    print(f"❌ Erro na conversão: {e}")
+
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+    
 def pdf_para_word():
     st.header("PDF para Word")
     uploaded_file = st.file_uploader(
