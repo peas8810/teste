@@ -7,3 +7,5 @@ Pillow
 img2pdf
 python-docx
 reportlab
+mammoth
+pdfkit
