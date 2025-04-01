@@ -1,239 +1,546 @@
+!apt-get install -y poppler-utils tesseract-ocr libreoffice
+
+!pip install pdf2docx PyPDF2 pdfplumber Pillow img2pdf pytesseract pdf2image ipywidgets
+
+!apt-get update
+!apt-get install -y ghostscript
+!which gs  # Verifica o caminho real
+
 # ============================================
-# 📥 Importações
+# 📅 Importações
 # ============================================
-import streamlit as st
 import os
 import shutil
+import time
 import zipfile
-from io import BytesIO
+import subprocess
+import uuid
+from IPython.display import display, FileLink
+import ipywidgets as widgets
+from google.colab import files
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from pdf2docx import Converter
 from PIL import Image
 import pytesseract
 from pdf2image import convert_from_path
-import img2pdf
-import mammoth
-from xhtml2pdf import pisa
 
 # ============================================
-# 📁 Diretório de trabalho
+# 📂 Diretório de Trabalho
 # ============================================
+POPPLER_PATH = "/usr/bin"
 WORK_DIR = "documentos"
 os.makedirs(WORK_DIR, exist_ok=True)
 
 # ============================================
-# 💾 Funções utilitárias
+# 💾 Função para Salvar Arquivos (unificada)
 # ============================================
-def salvar_arquivos(uploaded_files):
+def salvar_arquivos(upload_widget):
     caminhos = []
-    for uploaded_file in uploaded_files:
-        caminho = os.path.join(WORK_DIR, uploaded_file.name)
+    for nome, arquivo in upload_widget.value.items():
+        # Remove caracteres especiais e espaços do nome do arquivo
+        nome_base, extensao = os.path.splitext(nome)
+        nome_limpo = (nome_base.replace(" ", "_")
+                      .replace("ç", "c").replace("ã", "a")
+                      .replace("á", "a").replace("é", "e")
+                      .replace("í", "i").replace("ó", "o")
+                      .replace("ú", "u").replace("ñ", "n")) + extensao.lower()
+        
+        caminho = os.path.join(WORK_DIR, nome_limpo)
         with open(caminho, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+            f.write(arquivo["content"])
         caminhos.append(caminho)
     return caminhos
 
-def limpar_diretorio():
-    for filename in os.listdir(WORK_DIR):
-        file_path = os.path.join(WORK_DIR, filename)
-        try:
-            if os.path.isfile(file_path):
-                os.unlink(file_path)
-        except Exception as e:
-            st.error(f"Erro ao excluir {file_path}: {e}")
-
-def criar_link_download(nome_arquivo, label):
-    with open(os.path.join(WORK_DIR, nome_arquivo), "rb") as f:
-        st.download_button(
-            label=label,
-            data=f,
-            file_name=nome_arquivo,
-            mime="application/octet-stream"
-        )
-
 # ============================================
-# 📝 Word para PDF com mammoth + xhtml2pdf (compatível com Streamlit Cloud)
+# 📄 Funções de Conversão com Prefixos Identificáveis
 # ============================================
-def word_para_pdf():
-    st.header("Word para PDF (.docx → PDF)")
-    uploaded_files = st.file_uploader("Carregue arquivos Word (.docx)", type=["docx"], accept_multiple_files=True)
 
-    if uploaded_files and st.button("Converter para PDF"):
-        caminhos = salvar_arquivos(uploaded_files)
-        for caminho in caminhos:
+def word_para_pdf_interface():
+    upload = widgets.FileUpload(accept='.doc,.docx,.odt,.rtf', multiple=False)
+    botao = widgets.Button(description="Converter para PDF", button_style='success')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            caminho = caminhos[0]
             nome_base = os.path.splitext(os.path.basename(caminho))[0]
-            html_path = os.path.join(WORK_DIR, f"{nome_base}.html")
-            pdf_path = os.path.join(WORK_DIR, f"{nome_base}.pdf")
+            nome_saida = f"word_{nome_base}.pdf"
+            saida = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(saida):
+                os.remove(saida)
+            
+            # Converte usando LibreOffice
+            os.system(f"libreoffice --headless --convert-to pdf --outdir '{WORK_DIR}' '{caminho}'")
+            
+            # Renomeia o arquivo gerado para o padrão com prefixo
+            temp_pdf = os.path.join(WORK_DIR, f"{nome_base}.pdf")
+            if os.path.exists(temp_pdf):
+                os.rename(temp_pdf, saida)
+                
+            if os.path.exists(saida):
+                display(widgets.HTML(f"<b>✅ PDF Gerado:</b> {nome_saida}"))
+            else:
+                print(f"❌ Falha ao converter: {caminho}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
 
-            try:
-                # 1. Converte para HTML
-                with open(caminho, "rb") as docx_file:
-                    result = mammoth.convert_to_html(docx_file)
-                    html = result.value
-                with open(html_path, "w", encoding="utf-8") as f:
-                    f.write(html)
-
-                # 2. Gera PDF com xhtml2pdf
-                with open(html_path, "r", encoding="utf-8") as f:
-                    source_html = f.read()
-                with open(pdf_path, "wb") as output_file:
-                    pisa_status = pisa.CreatePDF(src=source_html, dest=output_file)
-
-                if pisa_status.err:
-                    st.error(f"Erro ao converter {nome_base}.docx para PDF.")
+def lote_word_para_pdf_interface():
+    upload = widgets.FileUpload(accept='.doc,.docx,.odt,.rtf', multiple=True)
+    botao = widgets.Button(description="Converter em Lote", button_style='success')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            for caminho in caminhos:
+                nome_base = os.path.splitext(os.path.basename(caminho))[0]
+                nome_saida = f"lote_{nome_base}.pdf"
+                saida = os.path.join(WORK_DIR, nome_saida)
+                
+                # Remove arquivo existente se houver
+                if os.path.exists(saida):
+                    os.remove(saida)
+                
+                # Converte usando LibreOffice
+                os.system(f"libreoffice --headless --convert-to pdf --outdir '{WORK_DIR}' '{caminho}'")
+                
+                # Renomeia o arquivo gerado para o padrão com prefixo
+                temp_pdf = os.path.join(WORK_DIR, f"{nome_base}.pdf")
+                if os.path.exists(temp_pdf):
+                    os.rename(temp_pdf, saida)
+                    
+                if os.path.exists(saida):
+                    display(widgets.HTML(f"<b>✅ PDF Gerado:</b> {nome_saida}"))
                 else:
-                    st.success(f"PDF gerado: {nome_base}.pdf")
-                    criar_link_download(f"{nome_base}.pdf", f"📥 Baixar {nome_base}.pdf")
+                    print(f"❌ Falha ao converter: {caminho}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
 
+def pdf_para_word_interface():
+    upload = widgets.FileUpload(accept='.pdf', multiple=False)
+    botao = widgets.Button(description="Converter para Word", button_style='info')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            caminho = caminhos[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            nome_saida = f"pdf2docx_{nome_base}.docx"
+            saida = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(saida):
+                os.remove(saida)
+            
+            try:
+                cv = Converter(caminho)
+                cv.convert(saida)
+                cv.close()
+                
+                if os.path.exists(saida):
+                    display(widgets.HTML(f"<b>✅ Word Gerado:</b> {nome_saida}"))
+                else:
+                    print(f"❌ Falha na conversão: {caminho}")
             except Exception as e:
-                st.error(f"Erro ao processar {caminho}: {e}")
+                print(f"❌ Erro na conversão: {str(e)}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def pdf_para_jpg_interface():
+    upload = widgets.FileUpload(accept='.pdf', multiple=False)
+    botao = widgets.Button(description="Converter para JPG", button_style='info')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            caminho = caminhos[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            
+            try:
+                imagens = convert_from_path(caminho, poppler_path=POPPLER_PATH)
+                for i, img in enumerate(imagens):
+                    nome_saida = f"pdf2jpg_{nome_base}_pag{i+1}.jpg"
+                    caminho_img = os.path.join(WORK_DIR, nome_saida)
+                    img.save(caminho_img, "JPEG")
+                    display(widgets.HTML(f"<b>🖼️ Imagem Gerada:</b> {nome_saida}"))
+            except Exception as e:
+                print(f"❌ Erro ao converter PDF para imagens: {str(e)}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def juntar_pdf_interface():
+    upload = widgets.FileUpload(accept='.pdf', multiple=True)
+    botao = widgets.Button(description="Juntar PDFs", button_style='primary')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if len(caminhos) < 2:
+                print("⚠️ É necessário carregar pelo menos 2 arquivos PDF.")
+                return
+                
+            nome_saida = "merge_resultado.pdf"
+            saida = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(saida):
+                os.remove(saida)
+            
+            merger = PdfMerger()
+            for c in caminhos:
+                merger.append(c)
+            merger.write(saida)
+            merger.close()
+            
+            if os.path.exists(saida):
+                display(widgets.HTML(f"<b>✅ PDF Unido Gerado:</b> {nome_saida}"))
+            else:
+                print("❌ Falha ao unir PDFs.")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def dividir_pdf_interface():
+    upload = widgets.FileUpload(accept='.pdf', multiple=False)
+    botao = widgets.Button(description="Dividir PDF", button_style='warning')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            caminho = caminhos[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            
+            try:
+                reader = PdfReader(caminho)
+                for i, page in enumerate(reader.pages):
+                    writer = PdfWriter()
+                    writer.add_page(page)
+                    nome_saida = f"split_{nome_base}_pag{i+1}.pdf"
+                    out_path = os.path.join(WORK_DIR, nome_saida)
+                    with open(out_path, "wb") as f:
+                        writer.write(f)
+                    display(widgets.HTML(f"<b>📄 Página Gerada:</b> {nome_saida}"))
+            except Exception as e:
+                print(f"❌ Erro ao dividir PDF: {str(e)}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def ocr_pdf_interface():
+    upload = widgets.FileUpload(accept='.pdf', multiple=False)
+    botao = widgets.Button(description="OCR em PDF", button_style='danger')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            caminho = caminhos[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            nome_saida = f"ocrpdf_{nome_base}.txt"
+            txt_path = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(txt_path):
+                os.remove(txt_path)
+            
+            try:
+                imagens = convert_from_path(caminho, poppler_path=POPPLER_PATH)
+                texto = ""
+                for i, img in enumerate(imagens):
+                    texto += f"\n\n--- Página {i+1} ---\n\n"
+                    texto += pytesseract.image_to_string(img, lang='por')
+                
+                with open(txt_path, "w", encoding="utf-8") as f:
+                    f.write(texto)
+                
+                if os.path.exists(txt_path):
+                    display(widgets.HTML(f"<b>✅ Texto Extraído:</b> {nome_saida}"))
+                else:
+                    print("❌ Falha ao extrair texto.")
+            except Exception as e:
+                print(f"❌ Erro no OCR: {str(e)}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def ocr_imagem_interface():
+    upload = widgets.FileUpload(accept='.jpg,.jpeg,.png', multiple=True)
+    botao = widgets.Button(description="OCR em Imagens", button_style='danger')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhuma imagem carregada.")
+                return
+                
+            nome_saida = "ocrimg_resultado.txt"
+            txt_path = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(txt_path):
+                os.remove(txt_path)
+            
+            texto = ""
+            for i, caminho in enumerate(caminhos):
+                try:
+                    img = Image.open(caminho)
+                    texto += f"\n\n--- Imagem {i+1} ---\n\n"
+                    texto += pytesseract.image_to_string(img, lang='por')
+                except Exception as e:
+                    print(f"❌ Erro ao processar imagem {i+1}: {str(e)}")
+            
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(texto)
+            
+            if os.path.exists(txt_path):
+                display(widgets.HTML(f"<b>✅ Texto Extraído:</b> {nome_saida}"))
+            else:
+                print("❌ Falha ao extrair texto das imagens.")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def jpg_para_pdf_interface():
+    upload = widgets.FileUpload(accept='.jpg,.jpeg,.png', multiple=True)
+    botao = widgets.Button(description="Imagens para PDF", button_style='info')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhuma imagem carregada.")
+                return
+                
+            nome_saida = "img2pdf_resultado.pdf"
+            caminho_pdf = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(caminho_pdf):
+                os.remove(caminho_pdf)
+            
+            try:
+                imagens = []
+                for caminho in caminhos:
+                    img = Image.open(caminho).convert("RGB")
+                    imagens.append(img)
+                
+                if imagens:
+                    imagens[0].save(caminho_pdf, save_all=True, append_images=imagens[1:])
+                    
+                    if os.path.exists(caminho_pdf):
+                        display(widgets.HTML(f"<b>✅ PDF Gerado:</b> {nome_saida}"))
+                    else:
+                        print("❌ Falha ao gerar PDF.")
+            except Exception as e:
+                print(f"❌ Erro ao converter imagens para PDF: {str(e)}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
+
+def pdf_para_pdfa_interface():
+    upload = widgets.FileUpload(accept='.pdf', multiple=False)
+    botao = widgets.Button(description="Converter para PDF/A", button_style='warning')
+    output = widgets.Output()
+    
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            caminhos = salvar_arquivos(upload)
+            if not caminhos:
+                print("⚠️ Nenhum arquivo carregado.")
+                return
+                
+            caminho = caminhos[0]
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            nome_saida = f"pdfa_{nome_base}.pdf"
+            saida = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(saida):
+                os.remove(saida)
+            
+            gs_path = "/usr/local/bin/gs" if os.path.exists("/usr/local/bin/gs") else "/usr/bin/gs"
+            comando = [
+                gs_path,
+                "-dPDFA=2",
+                "-dBATCH",
+                "-dNOPAUSE",
+                "-dNOOUTERSAVE",
+                "-sProcessColorModel=DeviceRGB",
+                "-sDEVICE=pdfwrite",
+                "-sPDFACompatibilityPolicy=1",
+                f"-sOutputFile={saida}",
+                caminho
+            ]
+            
+            try:
+                resultado = subprocess.run(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if os.path.exists(saida) and resultado.returncode == 0:
+                    display(widgets.HTML(f"<b>✅ PDF/A Gerado:</b> {nome_saida}"))
+                else:
+                    print("❌ Falha na conversão para PDF/A.")
+                    if resultado.stderr:
+                        print("🔍 Erro:", resultado.stderr.decode())
+            except Exception as e:
+                print(f"❌ Erro ao executar Ghostscript: {str(e)}")
+    
+    botao.on_click(ao_clicar)
+    return widgets.VBox([upload, botao, output])
 
 # ============================================
-# 📤 Outras funcionalidades (sem alterações)
+# 📄 Baixar Arquivos por Prefixo (aba específica)
 # ============================================
-def pdf_para_word():
-    st.header("PDF para Word")
-    uploaded_file = st.file_uploader("Carregue um arquivo PDF", type=["pdf"])
+def baixar_arquivo_widget(prefixo):
+    botao = widgets.Button(description="Baixar Arquivos da Aba", button_style='primary')
+    output = widgets.Output()
 
-    if uploaded_file and st.button("Converter para Word"):
-        caminho = salvar_arquivos([uploaded_file])[0]
-        nome_base = os.path.splitext(os.path.basename(caminho))[0]
-        saida = os.path.join(WORK_DIR, f"{nome_base}.docx")
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            arquivos = [f for f in os.listdir(WORK_DIR)
+                        if os.path.isfile(os.path.join(WORK_DIR, f))
+                        and f.startswith(prefixo)]
+            
+            if not arquivos:
+                print("❌ Nenhum arquivo correspondente encontrado.")
+                return
+                
+            for arq in arquivos:
+                caminho = os.path.join(WORK_DIR, arq)
+                try:
+                    files.download(caminho)
+                    print(f"📥 Enviado para download: {arq}")
+                except Exception as e:
+                    print(f"❌ Erro ao baixar {arq}: {str(e)}")
 
-        try:
-            cv = Converter(caminho)
-            cv.convert(saida)
-            cv.close()
-            st.success("Conversão concluída!")
-            criar_link_download(f"{nome_base}.docx", f"📥 Baixar {nome_base}.docx")
-        except Exception as e:
-            st.error(f"Erro: {e}")
-
-def pdf_para_jpg():
-    st.header("PDF para JPG")
-    uploaded_file = st.file_uploader("Carregue um PDF", type=["pdf"])
-    if uploaded_file and st.button("Converter para JPG"):
-        caminho = salvar_arquivos([uploaded_file])[0]
-        imagens = convert_from_path(caminho)
-        for i, img in enumerate(imagens):
-            nome = f"pagina_{i+1}.jpg"
-            caminho_img = os.path.join(WORK_DIR, nome)
-            img.save(caminho_img, "JPEG")
-            st.success(f"Página {i+1} gerada!")
-            criar_link_download(nome, f"📥 Baixar {nome}")
-
-def juntar_pdf():
-    st.header("Juntar PDFs")
-    arquivos = st.file_uploader("Selecione múltiplos PDFs", type=["pdf"], accept_multiple_files=True)
-    if arquivos and st.button("Juntar PDFs"):
-        caminhos = salvar_arquivos(arquivos)
-        saida = os.path.join(WORK_DIR, "unidos.pdf")
-        merger = PdfMerger()
-        for c in caminhos:
-            merger.append(c)
-        merger.write(saida)
-        merger.close()
-        st.success("PDF gerado com sucesso!")
-        criar_link_download("unidos.pdf", "📥 Baixar unidos.pdf")
-
-def dividir_pdf():
-    st.header("Dividir PDF")
-    arquivo = st.file_uploader("Selecione um PDF", type=["pdf"])
-    if arquivo and st.button("Dividir"):
-        caminho = salvar_arquivos([arquivo])[0]
-        reader = PdfReader(caminho)
-        for i, page in enumerate(reader.pages):
-            writer = PdfWriter()
-            writer.add_page(page)
-            nome = f"pagina_{i+1}.pdf"
-            out = os.path.join(WORK_DIR, nome)
-            with open(out, "wb") as f:
-                writer.write(f)
-            st.success(f"Página {i+1} salva!")
-            criar_link_download(nome, f"📥 Baixar {nome}")
-
-def ocr_pdf():
-    st.header("OCR em PDF")
-    arquivo = st.file_uploader("PDF para OCR", type=["pdf"])
-    if arquivo and st.button("Executar OCR"):
-        caminho = salvar_arquivos([arquivo])[0]
-        imagens = convert_from_path(caminho)
-        texto = ""
-        for i, img in enumerate(imagens):
-            texto += f"\n\n--- Página {i+1} ---\n\n"
-            texto += pytesseract.image_to_string(img, lang="por")
-        saida = os.path.join(WORK_DIR, "ocr_pdf.txt")
-        with open(saida, "w", encoding="utf-8") as f:
-            f.write(texto)
-        st.success("Texto extraído!")
-        criar_link_download("ocr_pdf.txt", "📥 Baixar OCR")
-
-def ocr_imagem():
-    st.header("OCR em Imagens")
-    imagens = st.file_uploader("Imagens", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-    if imagens and st.button("Executar OCR"):
-        caminhos = salvar_arquivos(imagens)
-        texto = ""
-        for i, caminho in enumerate(caminhos):
-            img = Image.open(caminho)
-            texto += f"\n\n--- Imagem {i+1} ---\n\n"
-            texto += pytesseract.image_to_string(img, lang="por")
-        saida = os.path.join(WORK_DIR, "ocr_img.txt")
-        with open(saida, "w", encoding="utf-8") as f:
-            f.write(texto)
-        st.success("Texto extraído!")
-        criar_link_download("ocr_img.txt", "📥 Baixar OCR")
-
-def jpg_para_pdf():
-    st.header("Imagens para PDF")
-    imagens = st.file_uploader("Carregue imagens", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-    if imagens and st.button("Converter"):
-        caminhos = salvar_arquivos(imagens)
-        nome_pdf = "img2pdf_resultado.pdf"
-        pdf_path = os.path.join(WORK_DIR, nome_pdf)
-        with open(pdf_path, "wb") as f:
-            f.write(img2pdf.convert(caminhos))
-        st.success("PDF criado!")
-        criar_link_download(nome_pdf, f"📥 Baixar {nome_pdf}")
+    botao.on_click(ao_clicar)
+    return widgets.VBox([botao, output])
 
 # ============================================
-# 🚀 Interface principal
+# 📦 Botão para Baixar ZIP com Todos os Arquivos
 # ============================================
-def main():
-    st.title("📄 Conversor de Documentos")
-    st.sidebar.title("Menu")
-    opcoes = [
-        "Word para PDF",
-        "PDF para Word",
-        "PDF para JPG",
-        "Juntar PDFs",
+def baixar_zip_widget():
+    botao = widgets.Button(description="Baixar Tudo (ZIP)", button_style='success')
+    output = widgets.Output()
+
+    def ao_clicar(b):
+        output.clear_output()
+        with output:
+            zip_path = os.path.join(WORK_DIR, "todos_os_arquivos.zip")
+            
+            # Remove arquivo ZIP existente se houver
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+            
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for root, _, files_ in os.walk(WORK_DIR):
+                    for file in files_:
+                        if file != "todos_os_arquivos.zip":
+                            full_path = os.path.join(root, file)
+                            arcname = os.path.relpath(full_path, WORK_DIR)
+                            zipf.write(full_path, arcname)
+            
+            if os.path.exists(zip_path):
+                print("📦 ZIP criado com sucesso!")
+                files.download(zip_path)
+            else:
+                print("❌ Falha ao gerar o ZIP.")
+
+    botao.on_click(ao_clicar)
+    return widgets.VBox([botao, output])
+
+# ============================================
+# 🔹 Interface com Abas
+# ============================================
+def montar_interface():
+    def adicionar_utilitarios(funcao_interface, prefixo):
+        return widgets.VBox([
+            funcao_interface(),
+            widgets.HTML("<hr>"),
+            baixar_arquivo_widget(prefixo),
+            baixar_zip_widget()
+        ])
+
+    abas = widgets.Tab()
+    abas.children = [
+        adicionar_utilitarios(word_para_pdf_interface, "word_"),
+        adicionar_utilitarios(lote_word_para_pdf_interface, "lote_"),
+        adicionar_utilitarios(pdf_para_word_interface, "pdf2docx_"),
+        adicionar_utilitarios(pdf_para_jpg_interface, "pdf2jpg_"),
+        adicionar_utilitarios(jpg_para_pdf_interface, "img2pdf_"),
+        adicionar_utilitarios(juntar_pdf_interface, "merge_"),
+        adicionar_utilitarios(dividir_pdf_interface, "split_"),
+        adicionar_utilitarios(ocr_pdf_interface, "ocrpdf_"),
+        adicionar_utilitarios(ocr_imagem_interface, "ocrimg_"),
+        adicionar_utilitarios(pdf_para_pdfa_interface, "pdfa_")
+    ]
+
+    titulos = [
+        "Word → PDF",
+        "Word → PDF (Lote)",
+        "PDF → Word",
+        "PDF → JPG",
+        "Imagem → PDF",
+        "Juntar PDF",
         "Dividir PDF",
         "OCR em PDF",
         "OCR em Imagens",
-        "Imagens para PDF"
+        "PDF → PDF/A"
     ]
-    escolha = st.sidebar.selectbox("Escolha a operação:", opcoes)
 
-    if escolha == "Word para PDF":
-        word_para_pdf()
-    elif escolha == "PDF para Word":
-        pdf_para_word()
-    elif escolha == "PDF para JPG":
-        pdf_para_jpg()
-    elif escolha == "Juntar PDFs":
-        juntar_pdf()
-    elif escolha == "Dividir PDF":
-        dividir_pdf()
-    elif escolha == "OCR em PDF":
-        ocr_pdf()
-    elif escolha == "OCR em Imagens":
-        ocr_imagem()
-    elif escolha == "Imagens para PDF":
-        jpg_para_pdf()
+    for i, titulo in enumerate(titulos):
+        abas.set_title(i, titulo)
 
-    if st.sidebar.button("🧹 Limpar arquivos temporários"):
-        limpar_diretorio()
-        st.sidebar.success("Arquivos temporários limpos!")
+    display(abas)
 
-if __name__ == "__main__":
-    main()
+# ============================================
+# ▶️ Executar Interface
+# ============================================
+montar_interface()
