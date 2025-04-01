@@ -1,6 +1,5 @@
 import os
 import shutil
-import time
 import zipfile
 import subprocess
 import uuid
@@ -16,14 +15,13 @@ import img2pdf
 WORK_DIR = "documentos"
 os.makedirs(WORK_DIR, exist_ok=True)
 
-# Verifica e configura o Tesseract OCR (pode precisar de ajuste no seu sistema)
-pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
+# Configura o Tesseract OCR (para o Streamlit Sharing)
+pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 # Função para salvar arquivos enviados
 def salvar_arquivos(uploaded_files):
     caminhos = []
     for uploaded_file in uploaded_files:
-        # Limpa o nome do arquivo
         nome_base, extensao = os.path.splitext(uploaded_file.name)
         nome_limpo = (nome_base.replace(" ", "_")
                       .replace("ç", "c").replace("ã", "a")
@@ -58,6 +56,7 @@ def criar_link_download(nome_arquivo, label):
         )
 
 # Funções de conversão
+# Função Word para PDF usando unoserver
 def word_para_pdf():
     st.header("Word para PDF")
     uploaded_files = st.file_uploader(
@@ -73,21 +72,19 @@ def word_para_pdf():
             st.error("Biblioteca unoserver não encontrada. Instale com: pip install unoserver")
             return
             
-        # Inicia o servidor UNO em segundo plano
-        conv = UnoConverter()
-        
         caminhos = salvar_arquivos(uploaded_files)
-        for caminho in caminhos:
-            nome_base = os.path.splitext(os.path.basename(caminho))[0]
-            nome_saida = f"word_{nome_base}.pdf"
-            saida = os.path.join(WORK_DIR, nome_saida)
-            
-            # Remove arquivo existente se houver
-            if os.path.exists(saida):
-                os.remove(saida)
-            
-            try:
-                # Converte usando unoserver
+        conv = None
+        
+        try:
+            conv = UnoConverter()
+            for caminho in caminhos:
+                nome_base = os.path.splitext(os.path.basename(caminho))[0]
+                nome_saida = f"word_{nome_base}.pdf"
+                saida = os.path.join(WORK_DIR, nome_saida)
+                
+                if os.path.exists(saida):
+                    os.remove(saida)
+                
                 conv.convert(inpath=caminho, outpath=saida, convert_to="pdf")
                 
                 if os.path.exists(saida):
@@ -95,11 +92,14 @@ def word_para_pdf():
                     criar_link_download(nome_saida, f"Baixar {nome_saida}")
                 else:
                     st.error(f"Falha ao converter: {caminho}")
-            except Exception as e:
-                st.error(f"Erro na conversão: {str(e)}")
+        except Exception as e:
+            st.error(f"Erro na conversão: {str(e)}")
         finally:
-            # Encerra o servidor UNO
-            conv.__del__()
+            if conv:
+                try:
+                    conv.__del__()
+                except:
+                    pass
 
 def pdf_para_word():
     st.header("PDF para Word")
@@ -389,7 +389,7 @@ def main():
     
     # Rodapé
     st.sidebar.markdown("---")
-    st.sidebar.markdown("Desenvolvido com Streamlit")
+    st.sidebar.markdown("Desenvolvido por PEAS.Co")
     
     # Executa a função selecionada
     if opcao == "Word para PDF":
