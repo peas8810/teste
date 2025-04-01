@@ -1,293 +1,411 @@
+import os
+import shutil
+import time
+import zipfile
+import subprocess
+import uuid
 import streamlit as st
-import random
-import hashlib
-import pdfplumber
-from collections import Counter
-from nltk.corpus import stopwords
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import Paragraph, SimpleDocTemplate
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-import nltk
-import re
-import requests
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from datetime import datetime, timedelta
+from PyPDF2 import PdfMerger, PdfReader, PdfWriter
+from pdf2docx import Converter
+from PIL import Image
+import pytesseract
+from pdf2image import convert_from_path
+import img2pdf
 
+# Configurações iniciais
+WORK_DIR = "documentos"
+os.makedirs(WORK_DIR, exist_ok=True)
 
-nltk.download('stopwords')
+# Verifica e configura o Tesseract OCR (pode precisar de ajuste no seu sistema)
+pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
 
-STOP_WORDS = set(stopwords.words('portuguese'))
-
-# 🔗 URL da API do Google Sheets
-URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyHRCrD5-A_JHtaUDXsGWQ22ul9ml5vvK3YYFzIE43jjCdip0dBMFH_Jmd8w971PLte/exec"
-
-# URLs das APIs
-SEMANTIC_API = "https://api.semanticscholar.org/graph/v1/paper/search"
-CROSSREF_API = "https://api.crossref.org/works"
-
-# =============================
-# 📋 Função para Salvar E-mails e Código de Verificação no Google Sheets
-# =============================
-def salvar_email_google_sheets(nome, email, codigo_verificacao):
-    dados = {
-        "nome": nome,
-        "email": email,
-        "codigo": codigo_verificacao
-    }
-    try:
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(URL_GOOGLE_SHEETS, json=dados, headers=headers)
-
-        if response.text.strip() == "Sucesso":
-            st.success("✅ E-mail, nome e código registrados com sucesso!")
-        else:
-            st.error(f"❌ Erro ao salvar dados no Google Sheets: {response.text}")
-    except Exception as e:
-        st.error(f"❌ Erro na conexão com o Google Sheets: {e}")
-
-# =============================
-# 🔎 Função para Verificar Código de Verificação na Planilha
-# =============================
-def verificar_codigo_google_sheets(codigo_digitado):
-    try:
-        response = requests.get(f"{URL_GOOGLE_SHEETS}?codigo={codigo_digitado}")
-        if response.text.strip() == "Valido":
-            return True
-        else:
-            return False
-    except Exception as e:
-        st.error(f"❌ Erro na conexão com o Google Sheets: {e}")
-        return False
-
-# =============================
-# 🔐 Função para Gerar Código de Verificação
-# =============================
-def gerar_codigo_verificacao(texto):
-    return hashlib.md5(texto.encode()).hexdigest()[:10].upper()
-
-# Função para obter artigos mais citados
-def get_popular_phrases(query, limit=10):
-    suggested_phrases = []
-
-    # Pesquisa na API Semantic Scholar
-    semantic_params = {"query": query, "limit": limit, "fields": "title,abstract,url,externalIds,citationCount"}
-    semantic_response = requests.get(SEMANTIC_API, params=semantic_params)
-
-    if semantic_response.status_code == 200:
-        semantic_data = semantic_response.json().get("data", [])
-        for item in semantic_data:
-            suggested_phrases.append({
-                "phrase": f"{item.get('title', '')}. {item.get('abstract', '')}",
-                "doi": item['externalIds'].get('DOI', 'N/A'),
-                "link": item.get('url', 'N/A'),
-                "citationCount": item.get('citationCount', 0)
-            })
-
-    # Pesquisa na API CrossRef
-    crossref_params = {"query": query, "rows": limit}
-    crossref_response = requests.get(CROSSREF_API, params=crossref_params)
-
-    if crossref_response.status_code == 200:
-        crossref_data = crossref_response.json().get("message", {}).get("items", [])
-        for item in crossref_data:
-            suggested_phrases.append({
-                "phrase": f"{item.get('title', [''])[0]}. {item.get('abstract', '')}",
-                "doi": item.get('DOI', 'N/A'),
-                "link": item.get('URL', 'N/A'),
-                "citationCount": item.get('is-referenced-by-count', 0)
-            })
-
-    # Ordenar por número de citações
-    suggested_phrases.sort(key=lambda x: x.get('citationCount', 0), reverse=True)
-
-    return suggested_phrases
-
-# Função para extrair as 10 palavras mais importantes dos artigos
-def extract_top_keywords(suggested_phrases):
-    all_text = " ".join([item['phrase'] for item in suggested_phrases])
-    words = re.findall(r'\b\w+\b', all_text.lower())
-    words = [word for word in words if word not in STOP_WORDS and len(word) > 3]  # Filtra stopwords e palavras curtas
-    word_freq = Counter(words).most_common(10)
-    return [word for word, freq in word_freq]
-
-# Função para simular estatísticas de publicações mensais
-def get_publication_statistics(total_articles):
-    # Simula uma taxa de crescimento mensal com base no total de artigos
-    start_date = datetime.now() - timedelta(days=365)  # Último ano
-    publication_dates = [start_date + timedelta(days=random.randint(0, 365)) for _ in range(total_articles)]
-    monthly_counts = Counter([date.strftime("%Y-%m") for date in publication_dates])
-
-    # Calcula a proporção de publicações a cada 100 artigos
-    proportion_per_100 = (total_articles / 100) * 100  # Simplesmente normaliza para 100
-
-    return monthly_counts, proportion_per_100
-
-# Modelo PyTorch para prever chance de ser referência
-class ArticlePredictor(nn.Module):
-    def __init__(self):
-        super(ArticlePredictor, self).__init__()
-        self.fc1 = nn.Linear(1, 16)
-        self.fc2 = nn.Linear(16, 8)
-        self.fc3 = nn.Linear(8, 1)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = torch.sigmoid(self.fc3(x))
-        return x
-
-# Avalia a probabilidade do artigo se tornar uma referência
-def evaluate_article_relevance(publication_count):
-    model = ArticlePredictor()
-    data = torch.tensor([[publication_count]], dtype=torch.float32)
-    probability = model(data).item() * 100  # Probabilidade em porcentagem
-
-    # Ajuste da descrição com base na probabilidade
-    if probability >= 70:
-        descricao = "A probabilidade de este artigo se tornar uma referência é alta. Isso ocorre porque há poucas publicações sobre o tema, o que aumenta as chances de destaque."
-    elif 30 <= probability < 70:
-        descricao = "A probabilidade de este artigo se tornar uma referência é moderada. O tema tem uma quantidade equilibrada de publicações, o que mantém as chances de destaque em um nível intermediário."
-    else:
-        descricao = "A probabilidade de este artigo se tornar uma referência é baixa. Há muitas publicações sobre o tema, o que reduz as chances de destaque."
-
-    return round(probability, 2), descricao
-
-# Função para extrair texto de um arquivo PDF
-def extract_text_from_pdf(pdf_path):
-    text = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return text.strip()
-
-# Função para identificar o tema principal do artigo
-def identify_theme(user_text):
-    words = re.findall(r'\b\w+\b', user_text)
-    keywords = [word.lower() for word in words if word.lower() not in STOP_WORDS]
-    keyword_freq = Counter(keywords).most_common(10)
-    return ", ".join([word for word, freq in keyword_freq])
-
-# Função para gerar relatório detalhado
-def generate_report(suggested_phrases, top_keywords, tema, probabilidade, descricao, monthly_counts, proportion_per_100, output_path="report.pdf"):
-    doc = SimpleDocTemplate(output_path, pagesize=A4)
-    styles = getSampleStyleSheet()
-
-    justified_style = ParagraphStyle(
-        'Justified',
-        parent=styles['BodyText'],
-        alignment=4,
-        spaceAfter=10,
-    )
-
-    content = [
-        Paragraph("<b>Relatório de Sugestão de Melhorias no Artigo - CitatIA - PEAS.Co</b>", styles['Title']),
-        Paragraph(f"<b>Tema Identificado com base nas principais palavras do artigo:</b> {tema}", justified_style),
-        Paragraph(f"<b>Probabilidade do artigo ser uma referência com base em fatores como palavras-chave e área de pesquisa:</b> {probabilidade}%", justified_style),
-        Paragraph(f"<b>Explicação:</b> {descricao}", justified_style)
-    ]
-
-    content.append(Paragraph("<b>Estatísticas de Publicações:</b>", styles['Heading3']))
-    content.append(Paragraph(f"<b>Publicações de artigos com mesmo tema:</b>", justified_style))
-    for month, count in monthly_counts.items():
-        content.append(Paragraph(f"• {month}: {count} publicações", justified_style))
-    content.append(Paragraph(f"<b>Proporção de publicações a cada 100 artigos:</b> {proportion_per_100:.2f}%", justified_style))
-
-    content.append(Paragraph("<b>Artigos mais acessados, baixados e/ou citados com base na tema:</b>", styles['Heading3']))
-    if suggested_phrases:
-        for item in suggested_phrases:
-            content.append(Paragraph(f"• {item['phrase']}<br/><b>DOI:</b> {item['doi']}<br/><b>Link:</b> {item['link']}<br/><b>Citações:</b> {item.get('citationCount', 'N/A')}", justified_style))
-
-    content.append(Paragraph("<b>Palavras-chave mais citadas nos artigos mais acessados, baixados e/ou citados com base na tema:</b>", styles['Heading3']))
-    if top_keywords:
-        for word in top_keywords:
-            content.append(Paragraph(f"• {word}", justified_style))
-    else:
-        content.append(Paragraph("Nenhuma palavra-chave relevante encontrada.", justified_style))
-
-    doc.build(content)
-
-# Interface com Streamlit
-def main():
-    st.title("CitatIA - Potencializador de Artigos - PEAS.Co")
-    st.write("Faça o upload do seu arquivo PDF para iniciar a análise.")
-
-    # Registro de usuário
-    st.subheader("📋 Registro de Usuário")
-    nome = st.text_input("Nome completo")
-    email = st.text_input("E-mail")
-
-    if st.button("Salvar Dados"):
-        if nome and email:
-            codigo_verificacao = gerar_codigo_verificacao(email)
-            salvar_email_google_sheets(nome, email, codigo_verificacao)
-            st.success(f"Código de verificação gerado: **{codigo_verificacao}**")
-        else:
-            st.warning("⚠️ Por favor, preencha todos os campos.")
-
-    # Upload do PDF
-    uploaded_file = st.file_uploader("Envie o arquivo PDF", type='pdf')
-
-    if uploaded_file:
-        with open("uploaded_article.pdf", "wb") as f:
+# Função para salvar arquivos enviados
+def salvar_arquivos(uploaded_files):
+    caminhos = []
+    for uploaded_file in uploaded_files:
+        # Limpa o nome do arquivo
+        nome_base, extensao = os.path.splitext(uploaded_file.name)
+        nome_limpo = (nome_base.replace(" ", "_")
+                      .replace("ç", "c").replace("ã", "a")
+                      .replace("á", "a").replace("é", "e")
+                      .replace("í", "i").replace("ó", "o")
+                      .replace("ú", "u").replace("ñ", "n")) + extensao.lower()
+        
+        caminho = os.path.join(WORK_DIR, nome_limpo)
+        with open(caminho, "wb") as f:
             f.write(uploaded_file.getbuffer())
+        caminhos.append(caminho)
+    return caminhos
 
-        st.info("🔍 Analisando o arquivo...")
+# Função para limpar arquivos temporários
+def limpar_diretorio():
+    for filename in os.listdir(WORK_DIR):
+        file_path = os.path.join(WORK_DIR, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            st.error(f"Erro ao limpar arquivo {file_path}: {e}")
 
-        user_text = extract_text_from_pdf("uploaded_article.pdf")
-        tema = identify_theme(user_text)
+# Função para baixar arquivos
+def criar_link_download(nome_arquivo, label):
+    with open(os.path.join(WORK_DIR, nome_arquivo), "rb") as f:
+        st.download_button(
+            label=label,
+            data=f,
+            file_name=nome_arquivo,
+            mime="application/octet-stream"
+        )
 
-        # Buscando artigos e frases populares com base no tema identificado
-        suggested_phrases = get_popular_phrases(tema, limit=10)
+# Funções de conversão
+def word_para_pdf():
+    st.header("Word para PDF")
+    uploaded_files = st.file_uploader(
+        "Carregue arquivos Word (.doc, .docx, .odt, .rtf)",
+        type=["doc", "docx", "odt", "rtf"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and st.button("Converter para PDF"):
+        caminhos = salvar_arquivos(uploaded_files)
+        for caminho in caminhos:
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            nome_saida = f"word_{nome_base}.pdf"
+            saida = os.path.join(WORK_DIR, nome_saida)
+            
+            # Remove arquivo existente se houver
+            if os.path.exists(saida):
+                os.remove(saida)
+            
+            # Converte usando LibreOffice (precisa estar instalado no sistema)
+            try:
+                subprocess.run([
+                    "libreoffice", "--headless", "--convert-to", "pdf", 
+                    "--outdir", WORK_DIR, caminho
+                ], check=True)
+                
+                # Renomeia o arquivo gerado
+                temp_pdf = os.path.join(WORK_DIR, f"{nome_base}.pdf")
+                if os.path.exists(temp_pdf):
+                    os.rename(temp_pdf, saida)
+                
+                if os.path.exists(saida):
+                    st.success(f"Arquivo convertido: {nome_saida}")
+                    criar_link_download(nome_saida, f"Baixar {nome_saida}")
+                else:
+                    st.error(f"Falha ao converter: {caminho}")
+            except Exception as e:
+                st.error(f"Erro na conversão: {str(e)}")
 
-        # Extrair as 10 palavras mais importantes dos artigos
-        top_keywords = extract_top_keywords(suggested_phrases)
+def pdf_para_word():
+    st.header("PDF para Word")
+    uploaded_file = st.file_uploader(
+        "Carregue um arquivo PDF",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Converter para Word"):
+        caminho = salvar_arquivos([uploaded_file])[0]
+        nome_base = os.path.splitext(os.path.basename(caminho))[0]
+        nome_saida = f"pdf2docx_{nome_base}.docx"
+        saida = os.path.join(WORK_DIR, nome_saida)
+        
+        # Remove arquivo existente se houver
+        if os.path.exists(saida):
+            os.remove(saida)
+        
+        try:
+            cv = Converter(caminho)
+            cv.convert(saida)
+            cv.close()
+            
+            if os.path.exists(saida):
+                st.success(f"Arquivo convertido: {nome_saida}")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+            else:
+                st.error(f"Falha na conversão: {caminho}")
+        except Exception as e:
+            st.error(f"Erro na conversão: {str(e)}")
 
-        # Calculando a probabilidade com base nas referências encontradas
-        publication_count = len(suggested_phrases)
-        probabilidade, descricao = evaluate_article_relevance(publication_count)
+def pdf_para_jpg():
+    st.header("PDF para JPG")
+    uploaded_file = st.file_uploader(
+        "Carregue um arquivo PDF",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Converter para JPG"):
+        caminho = salvar_arquivos([uploaded_file])[0]
+        nome_base = os.path.splitext(os.path.basename(caminho))[0]
+        
+        try:
+            imagens = convert_from_path(caminho)
+            for i, img in enumerate(imagens):
+                nome_saida = f"pdf2jpg_{nome_base}_pag{i+1}.jpg"
+                caminho_img = os.path.join(WORK_DIR, nome_saida)
+                img.save(caminho_img, "JPEG")
+                st.success(f"Imagem gerada: {nome_saida}")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+        except Exception as e:
+            st.error(f"Erro ao converter PDF para imagens: {str(e)}")
 
-        # Gerar estatísticas de publicações
-        monthly_counts, proportion_per_100 = get_publication_statistics(publication_count)
+def juntar_pdf():
+    st.header("Juntar PDFs")
+    uploaded_files = st.file_uploader(
+        "Carregue os PDFs para juntar",
+        type=["pdf"],
+        accept_multiple_files=True
+    )
+    
+    if len(uploaded_files) >= 2 and st.button("Juntar PDFs"):
+        caminhos = salvar_arquivos(uploaded_files)
+        nome_saida = "merge_resultado.pdf"
+        saida = os.path.join(WORK_DIR, nome_saida)
+        
+        # Remove arquivo existente se houver
+        if os.path.exists(saida):
+            os.remove(saida)
+        
+        try:
+            merger = PdfMerger()
+            for c in caminhos:
+                merger.append(c)
+            merger.write(saida)
+            merger.close()
+            
+            if os.path.exists(saida):
+                st.success("PDFs unidos com sucesso!")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+            else:
+                st.error("Falha ao unir PDFs.")
+        except Exception as e:
+            st.error(f"Erro ao unir PDFs: {str(e)}")
 
-        st.success(f"✅ Tema identificado: {tema}")
-        st.write(f"📈 Probabilidade do artigo ser uma referência com base em fatores como palavras-chave e área de pesquisa: {probabilidade}%")
-        st.write(f"ℹ️ {descricao}")
+def dividir_pdf():
+    st.header("Dividir PDF")
+    uploaded_file = st.file_uploader(
+        "Carregue um PDF para dividir",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Dividir PDF"):
+        caminho = salvar_arquivos([uploaded_file])[0]
+        nome_base = os.path.splitext(os.path.basename(caminho))[0]
+        
+        try:
+            reader = PdfReader(caminho)
+            for i, page in enumerate(reader.pages):
+                writer = PdfWriter()
+                writer.add_page(page)
+                nome_saida = f"split_{nome_base}_pag{i+1}.pdf"
+                out_path = os.path.join(WORK_DIR, nome_saida)
+                with open(out_path, "wb") as f:
+                    writer.write(f)
+                st.success(f"Página gerada: {nome_saida}")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+        except Exception as e:
+            st.error(f"Erro ao dividir PDF: {str(e)}")
 
-        st.write("<b>Estatísticas de Publicações:</b>", unsafe_allow_html=True)
-        st.write(f"<b>Publicações de artigos com mesmo tema:</b>", unsafe_allow_html=True)
-        for month, count in monthly_counts.items():
-            st.write(f"• {month}: {count} publicações")
-        st.write(f"<b>Proporção de publicações a cada 100 artigos:</b> {proportion_per_100:.2f}%", unsafe_allow_html=True)
+def ocr_pdf():
+    st.header("OCR em PDF")
+    uploaded_file = st.file_uploader(
+        "Carregue um PDF para extrair texto",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Extrair Texto (OCR)"):
+        caminho = salvar_arquivos([uploaded_file])[0]
+        nome_base = os.path.splitext(os.path.basename(caminho))[0]
+        nome_saida = f"ocrpdf_{nome_base}.txt"
+        txt_path = os.path.join(WORK_DIR, nome_saida)
+        
+        # Remove arquivo existente se houver
+        if os.path.exists(txt_path):
+            os.remove(txt_path)
+        
+        try:
+            imagens = convert_from_path(caminho)
+            texto = ""
+            for i, img in enumerate(imagens):
+                texto += f"\n\n--- Página {i+1} ---\n\n"
+                texto += pytesseract.image_to_string(img, lang='por')
+            
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(texto)
+            
+            if os.path.exists(txt_path):
+                st.success("Texto extraído com sucesso!")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+            else:
+                st.error("Falha ao extrair texto.")
+        except Exception as e:
+            st.error(f"Erro no OCR: {str(e)}")
 
-        st.write("<b>Palavras-chave mais citadas nos artigos mais acessados, baixados e/ou citados com base na tema:</b>", unsafe_allow_html=True)
-        if top_keywords:
-            for word in top_keywords:
-                st.write(f"• {word}")
+def ocr_imagem():
+    st.header("OCR em Imagens")
+    uploaded_files = st.file_uploader(
+        "Carregue imagens para extrair texto",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and st.button("Extrair Texto (OCR)"):
+        caminhos = salvar_arquivos(uploaded_files)
+        nome_saida = "ocrimg_resultado.txt"
+        txt_path = os.path.join(WORK_DIR, nome_saida)
+        
+        # Remove arquivo existente se houver
+        if os.path.exists(txt_path):
+            os.remove(txt_path)
+        
+        texto = ""
+        for i, caminho in enumerate(caminhos):
+            try:
+                img = Image.open(caminho)
+                texto += f"\n\n--- Imagem {i+1} ---\n\n"
+                texto += pytesseract.image_to_string(img, lang='por')
+            except Exception as e:
+                st.error(f"Erro ao processar imagem {i+1}: {str(e)}")
+        
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(texto)
+        
+        if os.path.exists(txt_path):
+            st.success("Texto extraído com sucesso!")
+            criar_link_download(nome_saida, f"Baixar {nome_saida}")
         else:
-            st.write("Nenhuma palavra-chave relevante encontrada.")
+            st.error("Falha ao extrair texto das imagens.")
 
-        # Gerar e exibir link para download do relatório
-        generate_report(suggested_phrases, top_keywords, tema, probabilidade, descricao, monthly_counts, proportion_per_100)
-        with open("report.pdf", "rb") as file:
-            st.download_button("📥 Baixar Relatório", file, "report.pdf")
+def jpg_para_pdf():
+    st.header("Imagens para PDF")
+    uploaded_files = st.file_uploader(
+        "Carregue imagens para converter em PDF",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and st.button("Converter para PDF"):
+        caminhos = salvar_arquivos(uploaded_files)
+        nome_saida = "img2pdf_resultado.pdf"
+        caminho_pdf = os.path.join(WORK_DIR, nome_saida)
+        
+        # Remove arquivo existente se houver
+        if os.path.exists(caminho_pdf):
+            os.remove(caminho_pdf)
+        
+        try:
+            # Usando img2pdf para melhor qualidade
+            with open(caminho_pdf, "wb") as f:
+                f.write(img2pdf.convert([Image.open(img).filename for img in caminhos]))
+            
+            if os.path.exists(caminho_pdf):
+                st.success("PDF gerado com sucesso!")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+            else:
+                st.error("Falha ao gerar PDF.")
+        except Exception as e:
+            st.error(f"Erro ao converter imagens para PDF: {str(e)}")
 
-    # Verificação de código
-    st.header("Verificar Autenticidade")
-    codigo_digitado = st.text_input("Digite o código de verificação:")
+def pdf_para_pdfa():
+    st.header("PDF para PDF/A")
+    uploaded_file = st.file_uploader(
+        "Carregue um PDF para converter para PDF/A",
+        type=["pdf"],
+        accept_multiple_files=False
+    )
+    
+    if uploaded_file and st.button("Converter para PDF/A"):
+        caminho = salvar_arquivos([uploaded_file])[0]
+        nome_base = os.path.splitext(os.path.basename(caminho))[0]
+        nome_saida = f"pdfa_{nome_base}.pdf"
+        saida = os.path.join(WORK_DIR, nome_saida)
+        
+        # Remove arquivo existente se houver
+        if os.path.exists(saida):
+            os.remove(saida)
+        
+        try:
+            gs_path = shutil.which("gs") or "/usr/bin/gs"
+            comando = [
+                gs_path,
+                "-dPDFA=2",
+                "-dBATCH",
+                "-dNOPAUSE",
+                "-dNOOUTERSAVE",
+                "-sProcessColorModel=DeviceRGB",
+                "-sDEVICE=pdfwrite",
+                "-sPDFACompatibilityPolicy=1",
+                f"-sOutputFile={saida}",
+                caminho
+            ]
+            
+            resultado = subprocess.run(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if os.path.exists(saida) and resultado.returncode == 0:
+                st.success("PDF/A gerado com sucesso!")
+                criar_link_download(nome_saida, f"Baixar {nome_saida}")
+            else:
+                st.error("Falha na conversão para PDF/A.")
+                if resultado.stderr:
+                    st.text(resultado.stderr.decode())
+        except Exception as e:
+            st.error(f"Erro ao executar Ghostscript: {str(e)}")
 
-    if st.button("Verificar Código"):
-        if verificar_codigo_google_sheets(codigo_digitado):
-            st.success("✅ Documento Autêntico e Original!")
-        else:
-            st.error("❌ Código inválido ou documento falsificado.")
+# Interface principal
+def main():
+    st.title("📄 Conversor de Documentos")
+    st.markdown("""
+    Ferramenta para conversão entre diversos formatos de documentos.
+    """)
+    
+    # Menu lateral
+    st.sidebar.title("Menu")
+    opcao = st.sidebar.selectbox(
+        "Selecione a operação",
+        [
+            "Word para PDF",
+            "PDF para Word",
+            "PDF para JPG",
+            "Juntar PDFs",
+            "Dividir PDF",
+            "OCR em PDF",
+            "OCR em Imagens",
+            "Imagens para PDF",
+            "PDF para PDF/A"
+        ]
+    )
+    
+    # Limpar arquivos temporários
+    if st.sidebar.button("Limpar arquivos temporários"):
+        limpar_diretorio()
+        st.sidebar.success("Arquivos temporários removidos!")
+    
+    # Rodapé
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("Desenvolvido com Streamlit")
+    
+    # Executa a função selecionada
+    if opcao == "Word para PDF":
+        word_para_pdf()
+    elif opcao == "PDF para Word":
+        pdf_para_word()
+    elif opcao == "PDF para JPG":
+        pdf_para_jpg()
+    elif opcao == "Juntar PDFs":
+        juntar_pdf()
+    elif opcao == "Dividir PDF":
+        dividir_pdf()
+    elif opcao == "OCR em PDF":
+        ocr_pdf()
+    elif opcao == "OCR em Imagens":
+        ocr_imagem()
+    elif opcao == "Imagens para PDF":
+        jpg_para_pdf()
+    elif opcao == "PDF para PDF/A":
+        pdf_para_pdfa()
 
 if __name__ == "__main__":
     main()
-
-# Texto explicativo ao final da página
-st.markdown("""
----
-Nosso avançado programa de potencialização de artigos utiliza inteligência artificial para comparar textos com uma ampla base de dados composta pelos 100 maiores indexadores e repositórios globais. Powered By - PEAS.Co
-""")
