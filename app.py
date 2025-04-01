@@ -15,10 +15,9 @@ import img2pdf
 WORK_DIR = "documentos"
 os.makedirs(WORK_DIR, exist_ok=True)
 
-# Configura o Tesseract OCR (para o Streamlit Sharing)
+# Configura o Tesseract OCR
 pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
-# Função para salvar arquivos enviados
 def salvar_arquivos(uploaded_files):
     caminhos = []
     for uploaded_file in uploaded_files:
@@ -35,7 +34,6 @@ def salvar_arquivos(uploaded_files):
         caminhos.append(caminho)
     return caminhos
 
-# Função para limpar arquivos temporários
 def limpar_diretorio():
     for filename in os.listdir(WORK_DIR):
         file_path = os.path.join(WORK_DIR, filename)
@@ -45,7 +43,6 @@ def limpar_diretorio():
         except Exception as e:
             st.error(f"Erro ao limpar arquivo {file_path}: {e}")
 
-# Função para baixar arquivos
 def criar_link_download(nome_arquivo, label):
     with open(os.path.join(WORK_DIR, nome_arquivo), "rb") as f:
         st.download_button(
@@ -54,29 +51,25 @@ def criar_link_download(nome_arquivo, label):
             file_name=nome_arquivo,
             mime="application/octet-stream"
         )
-
 # Funções de conversão
 # Função Word para PDF usando unoserver
 def word_para_pdf():
     st.header("Word para PDF")
+    st.warning("Conversão limitada a arquivos .docx no Streamlit Sharing")
+    
     uploaded_files = st.file_uploader(
-        "Carregue arquivos Word (.doc, .docx, .odt)",
-        type=["doc", "docx", "odt"],
+        "Carregue arquivos Word (.docx)",
+        type=["docx"],
         accept_multiple_files=True
     )
     
     if uploaded_files and st.button("Converter para PDF"):
         try:
-            from unoserver import UnoConverter
-        except ImportError:
-            st.error("Biblioteca unoserver não encontrada. Instale com: pip install unoserver")
-            return
+            from docx import Document
+            from io import BytesIO
+            from reportlab.pdfgen import canvas
             
-        caminhos = salvar_arquivos(uploaded_files)
-        conv = None
-        
-        try:
-            conv = UnoConverter()
+            caminhos = salvar_arquivos(uploaded_files)
             for caminho in caminhos:
                 nome_base = os.path.splitext(os.path.basename(caminho))[0]
                 nome_saida = f"word_{nome_base}.pdf"
@@ -85,21 +78,33 @@ def word_para_pdf():
                 if os.path.exists(saida):
                     os.remove(saida)
                 
-                conv.convert(inpath=caminho, outpath=saida, convert_to="pdf")
-                
-                if os.path.exists(saida):
-                    st.success(f"Arquivo convertido: {nome_saida}")
-                    criar_link_download(nome_saida, f"Baixar {nome_saida}")
-                else:
-                    st.error(f"Falha ao converter: {caminho}")
-        except Exception as e:
-            st.error(f"Erro na conversão: {str(e)}")
-        finally:
-            if conv:
                 try:
-                    conv.__del__()
-                except:
-                    pass
+                    doc = Document(caminho)
+                    text = "\n".join([para.text for para in doc.paragraphs])
+                    
+                    buffer = BytesIO()
+                    c = canvas.Canvas(buffer)
+                    text_object = c.beginText(40, 800)
+                    
+                    for line in text.split('\n'):
+                        text_object.textLine(line)
+                    
+                    c.drawText(text_object)
+                    c.save()
+                    
+                    with open(saida, "wb") as f:
+                        f.write(buffer.getvalue())
+                    
+                    if os.path.exists(saida):
+                        st.success(f"Arquivo convertido (texto apenas): {nome_saida}")
+                        criar_link_download(nome_saida, f"Baixar {nome_saida}")
+                    else:
+                        st.error(f"Falha ao converter: {caminho}")
+                except Exception as e:
+                    st.error(f"Erro na conversão: {str(e)}")
+        except ImportError:
+            st.error("Esta funcionalidade requer python-docx e reportlab")
+            st.code("pip install python-docx reportlab")
 
 def pdf_para_word():
     st.header("PDF para Word")
@@ -361,37 +366,29 @@ def pdf_para_pdfa():
 # Interface principal
 def main():
     st.title("📄 Conversor de Documentos")
-    st.markdown("""
-    Ferramenta para conversão entre diversos formatos de documentos.
-    """)
+    st.markdown("Ferramenta para conversão entre formatos de documentos")
     
-    # Menu lateral
+    # Menu com operações disponíveis
+    opcoes = [
+        "PDF para Word",
+        "PDF para JPG",
+        "Juntar PDFs",
+        "Dividir PDF",
+        "OCR em PDF",
+        "OCR em Imagens",
+        "Imagens para PDF"
+    ]
+    
+    # Adiciona Word para PDF apenas se python-docx estiver disponível
+    try:
+        from docx import Document
+        opcoes.insert(0, "Word para PDF")
+    except:
+        pass
+    
     st.sidebar.title("Menu")
-    opcao = st.sidebar.selectbox(
-        "Selecione a operação",
-        [
-            "Word para PDF",
-            "PDF para Word",
-            "PDF para JPG",
-            "Juntar PDFs",
-            "Dividir PDF",
-            "OCR em PDF",
-            "OCR em Imagens",
-            "Imagens para PDF",
-            "PDF para PDF/A"
-        ]
-    )
+    opcao = st.sidebar.selectbox("Selecione a operação", opcoes)
     
-    # Limpar arquivos temporários
-    if st.sidebar.button("Limpar arquivos temporários"):
-        limpar_diretorio()
-        st.sidebar.success("Arquivos temporários removidos!")
-    
-    # Rodapé
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("Desenvolvido por PEAS.Co")
-    
-    # Executa a função selecionada
     if opcao == "Word para PDF":
         word_para_pdf()
     elif opcao == "PDF para Word":
@@ -408,8 +405,13 @@ def main():
         ocr_imagem()
     elif opcao == "Imagens para PDF":
         jpg_para_pdf()
-    elif opcao == "PDF para PDF/A":
-        pdf_para_pdfa()
+    
+    if st.sidebar.button("Limpar arquivos temporários"):
+        limpar_diretorio()
+        st.sidebar.success("Arquivos temporários removidos!")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("Desenvolvido por PEAS.Co")
 
 if __name__ == "__main__":
     main()
