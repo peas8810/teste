@@ -8,3 +8,4 @@ img2pdf
 python-docx
 pdfplumber
 reportlab
+libreoffice
