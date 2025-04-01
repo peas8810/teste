@@ -1,6 +1,7 @@
 # ============================================
 # 📥 Importações
 # ============================================
+import streamlit as st
 import os
 import shutil
 import time
@@ -12,12 +13,9 @@ from IPython.display import display
 import ipywidgets as widgets
 from google.colab import files
 
-# ============================================
-# 📂 Configuração de Diretório
-# ============================================
+
+# Diretório de trabalho
 WORK_DIR = "documentos"
-if os.path.exists(WORK_DIR):
-    shutil.rmtree(WORK_DIR)
 os.makedirs(WORK_DIR, exist_ok=True)
 
 # Configura o Tesseract OCR
