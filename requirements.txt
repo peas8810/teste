@@ -3,6 +3,7 @@ PyPDF2
 pdf2docx
 pillow
 pytesseract
+libreoffice
 pdf2image
 img2pdf
 mammoth
