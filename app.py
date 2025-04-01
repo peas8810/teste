@@ -93,8 +93,17 @@ def word_para_pdf():
         }
 
         for arquivo in arquivos:
-            nome = arquivo.name
-            pdf_nome = nome.replace(".docx", ".pdf")
+            nome_original = arquivo.name
+nome_limpo = (
+    os.path.splitext(nome_original)[0]
+    .replace(" ", "_").replace("+", "_")
+    .replace("ç", "c").replace("ã", "a").replace("á", "a")
+    .replace("é", "e").replace("í", "i").replace("ó", "o")
+    .replace("ú", "u").replace("ñ", "n")
+)
+nome = f"{nome_limpo}.docx"
+pdf_nome = f"{nome_limpo}.pdf"
+
 
             upload_url = f"{GRAPH_UPLOAD_ENDPOINT}/{nome}:/content"
             upload = requests.put(upload_url, headers=headers, data=arquivo.getbuffer())
