@@ -1,133 +1,140 @@
+# ============================================
+# 📥 Importações
+# ============================================
+import streamlit as st
 import os
 import shutil
-import time
 import zipfile
-import subprocess
-import uuid
-import streamlit as st
+import requests
+from io import BytesIO
+from PIL import Image
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from pdf2docx import Converter
-from PIL import Image
-import pytesseract
 from pdf2image import convert_from_path
+import pytesseract
 import img2pdf
 
-# Configurações iniciais
+# ============================================
+# 🔐 Credenciais da API do Microsoft Graph
+# ============================================
+CLIENT_ID = "3290c2d6-65ed-4a1d-bac3-93882999cb21"
+TENANT_ID = "eef3c8f5-161e-4227-b779-7bb58821ba2d"
+CLIENT_SECRET = "04H8Q~4Pklz1rb4SItbigqnY5s9zkrU_U3WF4a1B"
+SCOPE = "https://graph.microsoft.com/.default"
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
+GRAPH_UPLOAD_ENDPOINT = "https://graph.microsoft.com/v1.0/me/drive/root:/documentos"
+
+# ============================================
+# 📁 Diretório de trabalho
+# ============================================
 WORK_DIR = "documentos"
 os.makedirs(WORK_DIR, exist_ok=True)
 
-# Verifica e configura o Tesseract OCR (pode precisar de ajuste no seu sistema)
-pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
-# Função para salvar arquivos enviados
+# ============================================
+# 💾 Utilitários
+# ============================================
 def salvar_arquivos(uploaded_files):
     caminhos = []
     for uploaded_file in uploaded_files:
-        # Limpa o nome do arquivo
-        nome_base, extensao = os.path.splitext(uploaded_file.name)
-        nome_limpo = (nome_base.replace(" ", "_")
-                      .replace("ç", "c").replace("ã", "a")
-                      .replace("á", "a").replace("é", "e")
-                      .replace("í", "i").replace("ó", "o")
-                      .replace("ú", "u").replace("ñ", "n")) + extensao.lower()
-        
-        caminho = os.path.join(WORK_DIR, nome_limpo)
+        caminho = os.path.join(WORK_DIR, uploaded_file.name)
         with open(caminho, "wb") as f:
             f.write(uploaded_file.getbuffer())
         caminhos.append(caminho)
     return caminhos
 
-# Função para limpar arquivos temporários
 def limpar_diretorio():
     for filename in os.listdir(WORK_DIR):
-        file_path = os.path.join(WORK_DIR, filename)
         try:
+            file_path = os.path.join(WORK_DIR, filename)
             if os.path.isfile(file_path):
                 os.unlink(file_path)
         except Exception as e:
-            st.error(f"Erro ao limpar arquivo {file_path}: {e}")
+            st.error(f"Erro ao excluir {file_path}: {e}")
 
-# Função para baixar arquivos
 def criar_link_download(nome_arquivo, label):
     with open(os.path.join(WORK_DIR, nome_arquivo), "rb") as f:
-        st.download_button(
-            label=label,
-            data=f,
-            file_name=nome_arquivo,
-            mime="application/octet-stream"
-        )
+        st.download_button(label=label, data=f, file_name=nome_arquivo, mime="application/octet-stream")
+
+# ============================================
+# 🔑 Autenticação com Microsoft Graph
+# ============================================
+def obter_token():
+    data = {
+        "client_id": CLIENT_ID,
+        "scope": SCOPE,
+        "client_secret": CLIENT_SECRET,
+        "grant_type": "client_credentials"
+    }
+    resposta = requests.post(AUTHORITY, data=data)
+    if resposta.status_code == 200:
+        return resposta.json().get("access_token")
+    else:
+        st.error("Erro ao autenticar com a API da Microsoft.")
+        return None
 
 # Funções de conversão
+# ============================================
+# 📤 Word → PDF via Microsoft Graph
+# ============================================
 def word_para_pdf():
-    st.header("Word para PDF")
-    uploaded_files = st.file_uploader(
-        "Carregue arquivos Word (.doc, .docx, .odt, .rtf)",
-        type=["doc", "docx", "odt", "rtf"],
-        accept_multiple_files=True
-    )
-    
-    if uploaded_files and st.button("Converter para PDF"):
-        caminhos = salvar_arquivos(uploaded_files)
-        for caminho in caminhos:
-            nome_base = os.path.splitext(os.path.basename(caminho))[0]
-            nome_saida = f"word_{nome_base}.pdf"
-            saida = os.path.join(WORK_DIR, nome_saida)
-            
-            # Remove arquivo existente se houver
-            if os.path.exists(saida):
-                os.remove(saida)
-            
-            # Converte usando LibreOffice (precisa estar instalado no sistema)
-            try:
-                subprocess.run([
-                    "libreoffice", "--headless", "--convert-to", "pdf", 
-                    "--outdir", WORK_DIR, caminho
-                ], check=True)
-                
-                # Renomeia o arquivo gerado
-                temp_pdf = os.path.join(WORK_DIR, f"{nome_base}.pdf")
-                if os.path.exists(temp_pdf):
-                    os.rename(temp_pdf, saida)
-                
-                if os.path.exists(saida):
-                    st.success(f"Arquivo convertido: {nome_saida}")
-                    criar_link_download(nome_saida, f"Baixar {nome_saida}")
-                else:
-                    st.error(f"Falha ao converter: {caminho}")
-            except Exception as e:
-                st.error(f"Erro na conversão: {str(e)}")
+    st.header("Word para PDF (.docx)")
+    arquivos = st.file_uploader("Carregue arquivos Word", type=["docx"], accept_multiple_files=True)
 
+    if arquivos and st.button("Converter para PDF"):
+        token = obter_token()
+        if not token:
+            return
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream"
+        }
+
+        for arquivo in arquivos:
+            nome = arquivo.name
+            pdf_nome = nome.replace(".docx", ".pdf")
+
+            upload_url = f"{GRAPH_UPLOAD_ENDPOINT}/{nome}:/content"
+            upload = requests.put(upload_url, headers=headers, data=arquivo.getbuffer())
+
+            if upload.status_code == 201:
+                # Agora faz o download como PDF
+                pdf_url = f"{GRAPH_UPLOAD_ENDPOINT}/{nome}/content?format=pdf"
+                pdf_res = requests.get(pdf_url, headers={"Authorization": f"Bearer {token}"})
+
+                if pdf_res.status_code == 200:
+                    pdf_path = os.path.join(WORK_DIR, pdf_nome)
+                    with open(pdf_path, "wb") as f:
+                        f.write(pdf_res.content)
+                    st.success(f"PDF gerado: {pdf_nome}")
+                    criar_link_download(pdf_nome, f"📥 Baixar {pdf_nome}")
+                else:
+                    st.error(f"Erro ao baixar PDF de {nome} (status {pdf_res.status_code})")
+            else:
+                st.error(f"Erro ao fazer upload do arquivo {nome} (status {upload.status_code})")
+
+# ============================================
+# 📤 Outras Funcionalidades
+# ============================================
 def pdf_para_word():
     st.header("PDF para Word")
-    uploaded_file = st.file_uploader(
-        "Carregue um arquivo PDF",
-        type=["pdf"],
-        accept_multiple_files=False
-    )
-    
+    uploaded_file = st.file_uploader("Carregue um arquivo PDF", type=["pdf"])
+
     if uploaded_file and st.button("Converter para Word"):
         caminho = salvar_arquivos([uploaded_file])[0]
         nome_base = os.path.splitext(os.path.basename(caminho))[0]
-        nome_saida = f"pdf2docx_{nome_base}.docx"
-        saida = os.path.join(WORK_DIR, nome_saida)
-        
-        # Remove arquivo existente se houver
-        if os.path.exists(saida):
-            os.remove(saida)
-        
+        saida = os.path.join(WORK_DIR, f"{nome_base}.docx")
+
         try:
             cv = Converter(caminho)
             cv.convert(saida)
             cv.close()
-            
-            if os.path.exists(saida):
-                st.success(f"Arquivo convertido: {nome_saida}")
-                criar_link_download(nome_saida, f"Baixar {nome_saida}")
-            else:
-                st.error(f"Falha na conversão: {caminho}")
+            st.success("Conversão concluída!")
+            criar_link_download(f"{nome_base}.docx", f"📥 Baixar {nome_base}.docx")
         except Exception as e:
-            st.error(f"Erro na conversão: {str(e)}")
-
+            st.error(f"Erro: {e}")
 def pdf_para_jpg():
     st.header("PDF para JPG")
     uploaded_file = st.file_uploader(
