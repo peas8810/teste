@@ -25,15 +25,16 @@ from typing import List, Optional, Tuple
 st.set_page_config(page_title="Conversor de Documentos", page_icon="📄", layout="wide")
 
 # ============================================
-# 🔐 Configurações de Segurança (Mover para variáveis de ambiente)
+# 🔐 Configurações de Autenticação (com suas credenciais)
 # ============================================
-# NOTA: Em produção, substitua por variáveis de ambiente ou um serviço de gerenciamento de segredos
-CLIENT_ID = st.secrets.get("MS_GRAPH_CLIENT_ID", "3290c2d6-65ed-4a1d-bac3-93882999cb21")
-TENANT_ID = st.secrets.get("MS_GRAPH_TENANT_ID", "eef3c8f5-161e-4227-b779-7bb58821ba2d")
-CLIENT_SECRET = st.secrets.get("MS_GRAPH_CLIENT_SECRET", "04H8Q~4Pklz1rb4SItbigqnY5s9zkrU_U3WF4a1B")
+CLIENT_ID = "3290c2d6-65ed-4a1d-bac3-93882999cb21"
+CLIENT_SECRET = "04H8Q~4Pklz1rb4SItbigqnY5s9zkrU_U3WF4a1B"
+TENANT_ID = "eef3c8f5-161e-4227-b779-7bb58821ba2d"
+
+# Configurações do Microsoft Graph
 SCOPE = "https://graph.microsoft.com/.default"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-GRAPH_ENDPOINT = "https://graph.microsoft.com/v1.0/me/drive/root:/{path}:/content"
+GRAPH_ENDPOINT = "https://graph.microsoft.com/v1.0"
 
 # ============================================
 # 📁 Configuração de diretórios temporários
@@ -123,31 +124,27 @@ def criar_link_download(nome_arquivo: str, label: str, mime_type: str = "applica
 # ============================================
 @st.cache_data(ttl=3600)  # Cache do token por 1 hora
 def obter_token():
+    """Obtém token de acesso com suas credenciais"""
     try:
         data = {
             "client_id": CLIENT_ID,
-            "scope": "https://graph.microsoft.com/.default",
             "client_secret": CLIENT_SECRET,
+            "scope": SCOPE,
             "grant_type": "client_credentials"
         }
         
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+        response = requests.post(AUTHORITY, data=data)
+        response.raise_for_status()
         
-        resposta = requests.post(AUTHORITY, data=data, headers=headers, timeout=10)
-        resposta.raise_for_status()
-        
-        token = resposta.json().get("access_token")
+        token = response.json().get("access_token")
         if not token:
-            st.error("Token de acesso não recebido")
+            st.error("Token não recebido na resposta")
             return None
             
         return token
     except Exception as e:
         st.error(f"Erro na autenticação: {str(e)}")
         return None
-
 # ============================================
 # 📄 Word → PDF via Microsoft Graph (Melhorada)
 # ============================================
@@ -189,57 +186,102 @@ def converter_word_pdf_graph(token: str, file_id: str, output_name: str) -> Tupl
     except Exception as e:
         return False, str(e).encode()
 
-def word_para_pdf():
-    st.header("Word para PDF (.docx)")
-    arquivos = st.file_uploader("Carregue arquivos Word", type=["docx"], accept_multiple_files=True)
+# ============================================
+# 📄 Funções de Conversão Word para PDF (Corrigidas)
+# ============================================
+def sanitizar_nome_arquivo(nome):
+    """Remove caracteres especiais do nome do arquivo"""
+    return re.sub(r'[^a-zA-Z0-9_.-]', '_', nome)
 
-    if arquivos and st.button("Converter para PDF"):
+def upload_arquivo(token, file_content, file_name):
+    """Faz upload do arquivo para o OneDrive corporativo"""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/octet-stream"
+    }
+    
+    # Usar o endpoint correto para aplicações
+    upload_url = f"{GRAPH_ENDPOINT}/drive/root:/ConversorTemp/{file_name}:/content"
+    
+    response = requests.put(upload_url, headers=headers, data=file_content)
+    
+    if response.status_code in (200, 201):
+        return True, response.json().get("id")
+    else:
+        error_msg = response.json().get("error", {}).get("message", "Erro desconhecido")
+        return False, error_msg
+
+def converter_para_pdf(token, file_id):
+    """Converte arquivo Word para PDF"""
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    
+    convert_url = f"{GRAPH_ENDPOINT}/drive/items/{file_id}/content?format=pdf"
+    response = requests.get(convert_url, headers=headers)
+    
+    if response.status_code == 200:
+        return response.content
+    else:
+        raise Exception(f"Erro na conversão: {response.status_code}")
+
+def word_para_pdf():
+    st.title("Conversor Word para PDF")
+    st.markdown("""
+    Converta seus arquivos Word (.docx) para PDF usando o Microsoft Graph API
+    """)
+    
+    arquivos = st.file_uploader(
+        "Selecione arquivos .docx", 
+        type=["docx"], 
+        accept_multiple_files=True,
+        help="Arquivos com até 15MB cada"
+    )
+    
+    if not arquivos:
+        return
+    
+    if st.button("Converter para PDF"):
         token = obter_token()
         if not token:
-            st.error("Falha na autenticação")
+            st.error("Falha na autenticação. Verifique as credenciais.")
             return
-
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/octet-stream"
-        }
-
-        for arquivo in arquivos:
-            nome_limpo = sanitize_filename(arquivo.name)
-            nome_base = os.path.splitext(nome_limpo)[0]
-            pdf_nome = f"{nome_base}.pdf"
-
-            try:
-                # 1. Upload para local temporário
-                upload_url = "https://graph.microsoft.com/v1.0/drive/root:/ConversorTemp/" + nome_limpo + ":/content"
-                
-                upload = requests.put(
-                    upload_url,
-                    headers=headers,
-                    data=arquivo.getvalue()
-                )
-
-                if upload.status_code not in (200, 201):
-                    error_msg = upload.json().get("error", {}).get("message", "Erro desconhecido")
-                    raise Exception(f"Upload falhou: {error_msg}")
-
-                # 2. Converter para PDF
-                file_id = upload.json().get("id")
-                pdf_url = f"https://graph.microsoft.com/v1.0/drive/items/{file_id}/content?format=pdf"
-                
-                pdf_res = requests.get(pdf_url, headers=headers)
-                if pdf_res.status_code != 200:
-                    raise Exception("Conversão falhou")
-
-                # 3. Salvar resultado
-                with open(os.path.join(WORK_DIR, pdf_nome), "wb") as f:
-                    f.write(pdf_res.content)
-
-                st.success(f"Conversão concluída: {pdf_nome}")
-                criar_link_download(pdf_nome, f"📥 Baixar {pdf_nome}")
-
-            except Exception as e:
-                st.error(f"Erro ao processar {arquivo.name}: {str(e)}")
+            
+        with st.spinner("Processando arquivos..."):
+            for arquivo in arquivos:
+                try:
+                    # 1. Preparar nome do arquivo
+                    nome_limpo = sanitizar_nome_arquivo(arquivo.name)
+                    
+                    # 2. Fazer upload
+                    sucesso, resultado = upload_arquivo(token, arquivo.getvalue(), nome_limpo)
+                    
+                    if not sucesso:
+                        st.error(f"Erro no upload: {resultado}")
+                        continue
+                        
+                    # 3. Converter para PDF
+                    pdf_content = converter_para_pdf(token, resultado)
+                    
+                    # 4. Salvar resultado temporário
+                    nome_pdf = os.path.splitext(nome_limpo)[0] + ".pdf"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        tmp.write(pdf_content)
+                        tmp_path = tmp.name
+                    
+                    # 5. Criar link de download
+                    with open(tmp_path, "rb") as f:
+                        st.download_button(
+                            label=f"Baixar {nome_pdf}",
+                            data=f,
+                            file_name=nome_pdf,
+                            mime="application/pdf"
+                        )
+                    
+                    st.success(f"Conversão concluída: {nome_limpo}")
+                    
+                except Exception as e:
+                    st.error(f"Erro ao processar {arquivo.name}: {str(e)}")
 
 # ============================================
 # 📤 Outras Funcionalidades (Melhoradas)
