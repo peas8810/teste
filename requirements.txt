@@ -1,9 +1,8 @@
 streamlit
 PyPDF2
 pdf2docx
-pdf2image
 pytesseract
-pillow
+pdf2image
+Pillow
 img2pdf
-python-docx
-pdfplumber
+unoserver
