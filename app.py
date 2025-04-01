@@ -1,5 +1,5 @@
 # ============================================
-# 📥 Importações
+# 📅 Importações
 # ============================================
 import streamlit as st
 import os
@@ -13,6 +13,7 @@ from pdf2docx import Converter
 from pdf2image import convert_from_path
 import pytesseract
 import img2pdf
+import subprocess
 
 # ============================================
 # 🔐 Credenciais da API do Microsoft Graph
@@ -76,7 +77,7 @@ def obter_token():
 
 # Funções de conversão
 # ============================================
-# 📤 Word → PDF via Microsoft Graph
+# 📄 Word → PDF via Microsoft Graph
 # ============================================
 def word_para_pdf():
     st.header("Word para PDF (.docx)")
@@ -94,22 +95,20 @@ def word_para_pdf():
 
         for arquivo in arquivos:
             nome_original = arquivo.name
-nome_limpo = (
-    os.path.splitext(nome_original)[0]
-    .replace(" ", "_").replace("+", "_")
-    .replace("ç", "c").replace("ã", "a").replace("á", "a")
-    .replace("é", "e").replace("í", "i").replace("ó", "o")
-    .replace("ú", "u").replace("ñ", "n")
-)
-nome = f"{nome_limpo}.docx"
-pdf_nome = f"{nome_limpo}.pdf"
-
+            nome_limpo = (
+                os.path.splitext(nome_original)[0]
+                .replace(" ", "_").replace("+", "_")
+                .replace("ç", "c").replace("ã", "a").replace("á", "a")
+                .replace("é", "e").replace("í", "i").replace("ó", "o")
+                .replace("ú", "u").replace("ñ", "n")
+            )
+            nome = f"{nome_limpo}.docx"
+            pdf_nome = f"{nome_limpo}.pdf"
 
             upload_url = f"{GRAPH_UPLOAD_ENDPOINT}/{nome}:/content"
             upload = requests.put(upload_url, headers=headers, data=arquivo.getbuffer())
 
             if upload.status_code == 201:
-                # Agora faz o download como PDF
                 pdf_url = f"{GRAPH_UPLOAD_ENDPOINT}/{nome}/content?format=pdf"
                 pdf_res = requests.get(pdf_url, headers={"Authorization": f"Bearer {token}"})
 
@@ -118,12 +117,11 @@ pdf_nome = f"{nome_limpo}.pdf"
                     with open(pdf_path, "wb") as f:
                         f.write(pdf_res.content)
                     st.success(f"PDF gerado: {pdf_nome}")
-                    criar_link_download(pdf_nome, f"📥 Baixar {pdf_nome}")
+                    criar_link_download(pdf_nome, f"📅 Baixar {pdf_nome}")
                 else:
                     st.error(f"Erro ao baixar PDF de {nome} (status {pdf_res.status_code})")
             else:
                 st.error(f"Erro ao fazer upload do arquivo {nome} (status {upload.status_code})")
-
 # ============================================
 # 📤 Outras Funcionalidades
 # ============================================
@@ -144,6 +142,7 @@ def pdf_para_word():
             criar_link_download(f"{nome_base}.docx", f"📥 Baixar {nome_base}.docx")
         except Exception as e:
             st.error(f"Erro: {e}")
+            
 def pdf_para_jpg():
     st.header("PDF para JPG")
     uploaded_file = st.file_uploader(
@@ -376,7 +375,7 @@ def main():
     st.markdown("""
     Ferramenta para conversão entre diversos formatos de documentos.
     """)
-    
+
     # Menu lateral
     st.sidebar.title("Menu")
     opcao = st.sidebar.selectbox(
@@ -393,17 +392,15 @@ def main():
             "PDF para PDF/A"
         ]
     )
-    
+
     # Limpar arquivos temporários
     if st.sidebar.button("Limpar arquivos temporários"):
         limpar_diretorio()
         st.sidebar.success("Arquivos temporários removidos!")
-    
-    # Rodapé
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("Desenvolvido com Streamlit")
-    
-    # Executa a função selecionada
+
     if opcao == "Word para PDF":
         word_para_pdf()
     elif opcao == "PDF para Word":
