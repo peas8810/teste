@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # ============================================
 # 📥 Importações
 # ============================================
@@ -7,7 +5,6 @@ import streamlit as st
 import os
 import shutil
 import zipfile
-import subprocess
 from io import BytesIO
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from pdf2docx import Converter
@@ -15,9 +12,8 @@ from PIL import Image
 import pytesseract
 from pdf2image import convert_from_path
 import img2pdf
-from docx import Document
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+import mammoth
+from xhtml2pdf import pisa
 
 # ============================================
 # 📁 Diretório de trabalho
@@ -56,38 +52,41 @@ def criar_link_download(nome_arquivo, label):
         )
 
 # ============================================
-# 📝 Word para PDF (usando python-docx + reportlab)
+# 📝 Word para PDF com mammoth + xhtml2pdf (compatível com Streamlit Cloud)
 # ============================================
 def word_para_pdf():
-    st.header("Word para PDF")
+    st.header("Word para PDF (.docx → PDF)")
     uploaded_files = st.file_uploader("Carregue arquivos Word (.docx)", type=["docx"], accept_multiple_files=True)
 
     if uploaded_files and st.button("Converter para PDF"):
         caminhos = salvar_arquivos(uploaded_files)
         for caminho in caminhos:
             nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            html_path = os.path.join(WORK_DIR, f"{nome_base}.html")
             pdf_path = os.path.join(WORK_DIR, f"{nome_base}.pdf")
 
             try:
-                doc = Document(caminho)
-                buffer = BytesIO()
-                c = canvas.Canvas(pdf_path, pagesize=letter)
-                width, height = letter
-                y = height - 40
+                # 1. Converte para HTML
+                with open(caminho, "rb") as docx_file:
+                    result = mammoth.convert_to_html(docx_file)
+                    html = result.value
+                with open(html_path, "w", encoding="utf-8") as f:
+                    f.write(html)
 
-                for para in doc.paragraphs:
-                    text = para.text
-                    if y < 50:
-                        c.showPage()
-                        y = height - 40
-                    c.drawString(40, y, text[:110])
-                    y -= 20
+                # 2. Gera PDF com xhtml2pdf
+                with open(html_path, "r", encoding="utf-8") as f:
+                    source_html = f.read()
+                with open(pdf_path, "wb") as output_file:
+                    pisa_status = pisa.CreatePDF(src=source_html, dest=output_file)
 
-                c.save()
-                st.success(f"PDF gerado: {nome_base}.pdf")
-                criar_link_download(f"{nome_base}.pdf", f"📥 Baixar {nome_base}.pdf")
+                if pisa_status.err:
+                    st.error(f"Erro ao converter {nome_base}.docx para PDF.")
+                else:
+                    st.success(f"PDF gerado: {nome_base}.pdf")
+                    criar_link_download(f"{nome_base}.pdf", f"📥 Baixar {nome_base}.pdf")
+
             except Exception as e:
-                st.error(f"Erro ao converter {caminho}: {e}")
+                st.error(f"Erro ao processar {caminho}: {e}")
 
 # ============================================
 # 📤 Outras funcionalidades (sem alterações)
