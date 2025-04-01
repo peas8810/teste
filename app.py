@@ -61,12 +61,20 @@ def criar_link_download(nome_arquivo, label):
 def word_para_pdf():
     st.header("Word para PDF")
     uploaded_files = st.file_uploader(
-        "Carregue arquivos Word (.doc, .docx, .odt, .rtf)",
-        type=["doc", "docx", "odt", "rtf"],
+        "Carregue arquivos Word (.doc, .docx)",
+        type=["doc", "docx"],
         accept_multiple_files=True
     )
     
     if uploaded_files and st.button("Converter para PDF"):
+        try:
+            # Tenta importar a biblioteca python-docx
+            from docx import Document
+            from docx2pdf import convert
+        except ImportError:
+            st.error("Bibliotecas necessárias não encontradas. Instale com: pip install python-docx docx2pdf")
+            return
+            
         caminhos = salvar_arquivos(uploaded_files)
         for caminho in caminhos:
             nome_base = os.path.splitext(os.path.basename(caminho))[0]
@@ -77,17 +85,9 @@ def word_para_pdf():
             if os.path.exists(saida):
                 os.remove(saida)
             
-            # Converte usando LibreOffice (precisa estar instalado no sistema)
             try:
-                subprocess.run([
-                    "libreoffice", "--headless", "--convert-to", "pdf", 
-                    "--outdir", WORK_DIR, caminho
-                ], check=True)
-                
-                # Renomeia o arquivo gerado
-                temp_pdf = os.path.join(WORK_DIR, f"{nome_base}.pdf")
-                if os.path.exists(temp_pdf):
-                    os.rename(temp_pdf, saida)
+                # Converte usando docx2pdf
+                convert(caminho, saida)
                 
                 if os.path.exists(saida):
                     st.success(f"Arquivo convertido: {nome_saida}")
