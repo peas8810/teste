@@ -1,10 +1,9 @@
 streamlit
-PyPDF2
-pdf2docx
+python-docx
+reportlab
 pdf2image
-pytesseract
 pillow
 img2pdf
-python-docx
-pdfplumber
-reportlab
+pytesseract
+PyPDF2
+pdf2docx
