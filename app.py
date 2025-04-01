@@ -55,57 +55,38 @@ def criar_link_download(nome_arquivo, label):
 # Função Word para PDF usando unoserver
 def word_para_pdf():
     st.header("Word para PDF")
-    st.warning("Conversão limitada a arquivos .docx no Streamlit Sharing")
-    
     uploaded_files = st.file_uploader(
-        "Carregue arquivos Word (.docx)",
-        type=["docx"],
+        "Carregue arquivos Word (.doc, .docx, .odt, .rtf)",
+        type=["doc", "docx", "odt", "rtf"],
         accept_multiple_files=True
     )
-    
-    if uploaded_files and st.button("Converter para PDF"):
-        try:
-            from docx import Document
-            from io import BytesIO
-            from reportlab.pdfgen import canvas
-            
-            caminhos = salvar_arquivos(uploaded_files)
-            for caminho in caminhos:
-                nome_base = os.path.splitext(os.path.basename(caminho))[0]
-                nome_saida = f"word_{nome_base}.pdf"
-                saida = os.path.join(WORK_DIR, nome_saida)
-                
-                if os.path.exists(saida):
-                    os.remove(saida)
-                
-                try:
-                    doc = Document(caminho)
-                    text = "\n".join([para.text for para in doc.paragraphs])
-                    
-                    buffer = BytesIO()
-                    c = canvas.Canvas(buffer)
-                    text_object = c.beginText(40, 800)
-                    
-                    for line in text.split('\n'):
-                        text_object.textLine(line)
-                    
-                    c.drawText(text_object)
-                    c.save()
-                    
-                    with open(saida, "wb") as f:
-                        f.write(buffer.getvalue())
-                    
-                    if os.path.exists(saida):
-                        st.success(f"Arquivo convertido (texto apenas): {nome_saida}")
-                        criar_link_download(nome_saida, f"Baixar {nome_saida}")
-                    else:
-                        st.error(f"Falha ao converter: {caminho}")
-                except Exception as e:
-                    st.error(f"Erro na conversão: {str(e)}")
-        except ImportError:
-            st.error("Esta funcionalidade requer python-docx e reportlab")
-            st.code("pip install python-docx reportlab")
 
+    if uploaded_files and st.button("Converter para PDF"):
+        caminhos = salvar_arquivos(uploaded_files)
+        
+        for caminho in caminhos:
+            nome_base = os.path.splitext(os.path.basename(caminho))[0]
+            nome_saida = f"word_{nome_base}.pdf"
+            saida = os.path.join(WORK_DIR, nome_saida)
+
+            try:
+                # Usa unoserver-client para conversão
+                subprocess.run([
+                    "unoserver", "--convert-to", "pdf", "--output-dir", WORK_DIR, caminho
+                ], check=True)
+
+                # Renomeia a saída para usar prefixo word_
+                saida_temporario = os.path.join(WORK_DIR, f"{nome_base}.pdf")
+                if os.path.exists(saida_temporario):
+                    os.rename(saida_temporario, saida)
+
+                if os.path.exists(saida):
+                    st.success(f"✅ PDF gerado: {nome_saida}")
+                    criar_link_download(nome_saida, f"Baixar {nome_saida}")
+                else:
+                    st.error(f"❌ Falha ao converter: {caminho}")
+            except Exception as e:
+                st.error(f"Erro durante a conversão: {str(e)}")
 def pdf_para_word():
     st.header("PDF para Word")
     uploaded_file = st.file_uploader(
