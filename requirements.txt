@@ -7,4 +7,3 @@ pillow
 img2pdf
 python-docx
 pdfplumber
-unoserver
