@@ -1,8 +1,9 @@
 streamlit
-requests
-nltk
+PyPDF2
+pdf2docx
+pdf2image
+pytesseract
+pillow
+img2pdf
+python-docx
 pdfplumber
-torch
-reportlab
-Pillow
-openpyxl
