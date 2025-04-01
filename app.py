@@ -189,71 +189,63 @@ def converter_word_pdf_graph(token: str, file_id: str, output_name: str) -> Tupl
         return False, str(e).encode()
 
 def word_para_pdf():
-    """Interface para conversão de Word para PDF usando Microsoft Graph"""
-    st.header("📄 Word para PDF (.docx)")
-    st.warning("Nota: Esta função requer conexão com a API da Microsoft e pode ter limitações de tamanho de arquivo.")
-    
-    arquivos = st.file_uploader(
-        "Carregue arquivos Word (DOCX)", 
-        type=["docx"], 
-        accept_multiple_files=True,
-        help="Arquivos DOCX com até 15MB cada"
-    )
-    
-    if not arquivos:
-        return
-    
-    if st.button("Converter para PDF", key="word_to_pdf"):
+    st.header("Word para PDF (.docx)")
+    arquivos = st.file_uploader("Carregue arquivos Word", type=["docx"], accept_multiple_files=True)
+
+    if arquivos and st.button("Converter para PDF"):
         token = obter_token()
         if not token:
-            st.error("Falha na autenticação. Verifique as credenciais da API.")
             return
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        for i, arquivo in enumerate(arquivos):
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream"
+        }
+
+        for arquivo in arquivos:
+            nome_original = arquivo.name
+            nome_limpo = sanitize_filename(nome_original)
+            nome_base = os.path.splitext(nome_limpo)[0]
+            pdf_nome = f"{nome_base}.pdf"
+
+            # Usar o endpoint de upload para aplicações (não /me)
+            upload_url = f"https://graph.microsoft.com/v1.0/sites/root/drive/root:/{nome_limpo}:/content"
+            
             try:
-                # Sanitiza o nome do arquivo
-                nome_original = arquivo.name
-                nome_limpo = sanitize_filename(nome_original)
-                nome_base = os.path.splitext(nome_limpo)[0]
-                pdf_nome = f"{nome_base}.pdf"
-                
-                # Atualiza status
-                progress = (i + 1) / len(arquivos)
-                progress_bar.progress(progress)
-                status_text.text(f"Processando {i+1}/{len(arquivos)}: {nome_original[:30]}...")
-                
-                # Faz upload do arquivo
-                success, result = upload_arquivo_graph(token, arquivo.getbuffer(), nome_limpo)
-                if not success:
-                    st.error(f"Erro ao fazer upload de {nome_original}: {result}")
-                    continue
-                
-                file_id = result
-                
-                # Converte para PDF
-                success, pdf_content = converter_word_pdf_graph(token, file_id, pdf_nome)
-                if not success:
-                    st.error(f"Erro ao converter {nome_original}: {pdf_content.decode()}")
-                    continue
-                
-                # Salva o PDF resultante
-                pdf_path = os.path.join(WORK_DIR, pdf_nome)
-                with open(pdf_path, "wb") as f:
-                    f.write(pdf_content)
-                
-                # Cria link de download
-                with st.expander(f"✅ {nome_original} → {pdf_nome}"):
-                    criar_link_download(pdf_nome, f"📥 Baixar {pdf_nome}", "application/pdf")
-                
+                # Fazer upload do arquivo
+                upload = requests.put(
+                    upload_url,
+                    headers=headers,
+                    data=arquivo.getbuffer(),
+                    timeout=30
+                )
+
+                if upload.status_code in (200, 201):
+                    file_id = upload.json().get("id")
+                    
+                    # Converter para PDF
+                    pdf_url = f"https://graph.microsoft.com/v1.0/sites/root/drive/items/{file_id}/content?format=pdf"
+                    pdf_res = requests.get(
+                        pdf_url,
+                        headers={"Authorization": f"Bearer {token}"},
+                        timeout=30
+                    )
+
+                    if pdf_res.status_code == 200:
+                        pdf_path = os.path.join(WORK_DIR, pdf_nome)
+                        with open(pdf_path, "wb") as f:
+                            f.write(pdf_res.content)
+                        st.success(f"PDF gerado: {pdf_nome}")
+                        criar_link_download(pdf_nome, f"📅 Baixar {pdf_nome}")
+                    else:
+                        error_msg = pdf_res.json().get("error", {}).get("message", "Erro desconhecido")
+                        st.error(f"Erro ao baixar PDF: {error_msg} (status {pdf_res.status_code})")
+                else:
+                    error_msg = upload.json().get("error", {}).get("message", "Erro desconhecido")
+                    st.error(f"Erro ao fazer upload: {error_msg} (status {upload.status_code})")
+
             except Exception as e:
                 st.error(f"Erro ao processar {nome_original}: {str(e)}")
-        
-        progress_bar.empty()
-        status_text.empty()
-        st.success("Processamento concluído!")
 
 # ============================================
 # 📤 Outras Funcionalidades (Melhoradas)
