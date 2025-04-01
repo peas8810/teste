@@ -756,7 +756,7 @@ def main():
         """)
         
         st.markdown("---")
-        st.markdown("🛠️ Desenvolvido com Streamlit")
+        st.markdown("🛠️ Desenvolvido por PEAS.Co")
     
     # Roteamento das funções
     if opcao == "Word para PDF":
