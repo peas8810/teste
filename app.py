@@ -2,6 +2,7 @@
 import streamlit as st
 import requests
 import os
+from io import BytesIO
 
 API_URL = "https://geral-pdf.onrender.com"  # URL da API FastAPI
 
@@ -36,7 +37,7 @@ if st.button("🔄 Processar"):
     else:
         with st.spinner("Processando com IA..."):
             try:
-                files = [("files", (arq.name, arq, arq.type)) for arq in arquivos]
+                files = [("files", (arq.name, BytesIO(arq.read()), arq.type)) for arq in arquivos]
                 response = requests.post(API_URL + endpoint, files=files)
 
                 if response.status_code == 200:
