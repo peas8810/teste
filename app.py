@@ -37,24 +37,30 @@ if st.button("🔄 Processar"):
     else:
         with st.spinner("Processando com IA..."):
             try:
-                files = [("files", (arq.name, BytesIO(arq.read()), arq.type)) for arq in arquivos]
-                response = requests.post(API_URL + endpoint, files=files)
+                files = [
+                    ("files", (arq.name, BytesIO(arq.getvalue()), arq.type)) for arq in arquivos if arq is not None
+                ]
 
-                if response.status_code == 200:
-                    content_type = response.headers.get("content-type", "")
-
-                    if "application/json" in content_type:
-                        dados = response.json()
-                        if "arquivos" in dados or "imagens" in dados:
-                            chaves = dados.get("arquivos") or dados.get("imagens")
-                            for caminho in chaves:
-                                nome = os.path.basename(caminho)
-                                st.success(f"✅ Arquivo gerado: {nome}")
-                        else:
-                            st.json(dados)
-                    else:
-                        st.download_button("📥 Baixar Resultado", data=response.content, file_name="resultado")
+                if not files:
+                    st.error("Erro: Nenhum arquivo válido para processar.")
                 else:
-                    st.error(f"Erro: {response.status_code} - {response.text}")
+                    response = requests.post(API_URL + endpoint, files=files)
+
+                    if response.status_code == 200:
+                        content_type = response.headers.get("content-type", "")
+
+                        if "application/json" in content_type:
+                            dados = response.json()
+                            chaves = dados.get("arquivos") or dados.get("imagens")
+                            if chaves:
+                                for caminho in chaves:
+                                    nome = os.path.basename(caminho)
+                                    st.success(f"✅ Arquivo gerado: {nome}")
+                            else:
+                                st.json(dados)
+                        else:
+                            st.download_button("📥 Baixar Resultado", data=response.content, file_name="resultado")
+                    else:
+                        st.error(f"Erro: {response.status_code} - {response.text}")
             except Exception as e:
                 st.error(f"Erro ao processar: {str(e)}")
