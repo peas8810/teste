@@ -57,6 +57,7 @@ if st.button("🔄 Processar"):
                                     nome = os.path.basename(caminho)
                                     st.success(f"✅ Arquivo gerado: {nome}")
                             else:
+                                st.info("⚠️ Nenhum arquivo gerado. Veja a resposta da API abaixo:")
                                 st.json(dados)
                         else:
                             st.download_button("📥 Baixar Resultado", data=response.content, file_name="resultado")
