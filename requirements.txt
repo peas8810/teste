@@ -6,4 +6,3 @@ pdf2image
 pytesseract
 img2pdf
 requests
-Ilovepdf
