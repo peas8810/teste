@@ -16,6 +16,7 @@ import pytesseract
 import img2pdf
 import subprocess
 import unicodedata
+import base64
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -619,6 +620,8 @@ def jpg_para_pdf():
         except Exception as e:
             st.error(f"Erro ao converter imagens para PDF: {str(e)}")
 
+
+
 def pdf_para_pdfa():
     """Converte PDF para PDF/A usando a API do PDF4me (via JSON base64)"""
     st.header("📄 PDF para PDF/A (via PDF4me API)")
@@ -673,6 +676,7 @@ def pdf_para_pdfa():
 
         except Exception as e:
             st.error(f"Erro ao processar a conversão: {str(e)}")
+
 # ============================================
 # 🏠 Interface Principal
 # ============================================
