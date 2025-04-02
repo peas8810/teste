@@ -620,69 +620,44 @@ def jpg_para_pdf():
             st.error(f"Erro ao converter imagens para PDF: {str(e)}")
 
 def pdf_para_pdfa():
-    """Converte PDF para padrão PDF/A (arquivável)"""
-    st.header("📄 PDF para PDF/A (Arquivável)")
-    st.warning("Nota: Requer Ghostscript instalado no servidor.")
-    
+    """Converte PDF para PDF/A usando a API do PDF4me"""
+    st.header("📄 PDF para PDF/A (via PDF4me API)")
+    st.info("Esta conversão utiliza a API gratuita do PDF4me. Você tem até 20 conversões por mês no plano gratuito.")
+
     uploaded_file = st.file_uploader(
         "Carregue um PDF para converter para PDF/A",
         type=["pdf"],
         accept_multiple_files=False,
-        help="PDFs com até 50 páginas para melhor performance"
+        help="PDFs com até 50 páginas"
     )
-    
+
     if not uploaded_file:
         return
-    
-    # Opções de conversão
-    pdfa_version = st.selectbox(
-        "Versão PDF/A",
-        ["PDF/A-1", "PDF/A-2", "PDF/A-3"],
-        index=1
-    )
-    
-    if st.button("Converter para PDF/A", key="pdf_to_pdfa"):
+
+    if st.button("Converter para PDF/A", key="pdf_to_pdfa_api"):
         try:
-            with st.spinner("Convertendo para PDF/A..."):
-                caminho = salvar_arquivos([uploaded_file])[0]
-                nome_base = os.path.splitext(os.path.basename(caminho))[0]
-                nome_saida = f"pdfa_{nome_base}.pdf"
-                saida = os.path.join(WORK_DIR, nome_saida)
-                
-                # Configura Ghostscript
-                gs_path = shutil.which("gs") or "/usr/bin/gs"
-                pdfa_num = pdfa_version.split("-")[1][0]  # 1, 2 ou 3
-                
-                comando = [
-                    gs_path,
-                    f"-dPDFA={pdfa_num}",
-                    "-dBATCH",
-                    "-dNOPAUSE",
-                    "-dNOOUTERSAVE",
-                    "-sProcessColorModel=DeviceRGB",
-                    "-sDEVICE=pdfwrite",
-                    "-sPDFACompatibilityPolicy=1",
-                    f"-sOutputFile={saida}",
-                    caminho
-                ]
-                
-                # Executa Ghostscript
-                resultado = subprocess.run(
-                    comando,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
+            with st.spinner("Enviando arquivo para a API do PDF4me..."):
+                api_key = "ZTk0M2I1ODMtMWMyNi00NjViLWI4MWMtYjhhYzQ5ZjlhYTI3OjJnNUJKUGNjRlF6UjZPRWl1SkF1YUx1RTEmcVF4SE9P"
+                response = requests.post(
+                    url="https://api.pdf4me.com/v1/ConvertToPdfA",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    files={"file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")}
                 )
-                
-                if os.path.exists(saida) and resultado.returncode == 0:
-                    st.success("PDF/A gerado com sucesso!")
-                    criar_link_download(nome_saida, f"📥 Baixar {nome_saida}", "application/pdf")
+
+                if response.status_code == 200:
+                    st.success("✅ Conversão concluída com sucesso!")
+                    st.download_button(
+                        label="📥 Baixar PDF/A",
+                        data=response.content,
+                        file_name="pdfa_" + uploaded_file.name,
+                        mime="application/pdf"
+                    )
                 else:
-                    st.error("Falha na conversão para PDF/A.")
-                    if resultado.stderr:
-                        st.text_area("Detalhes do erro:", value=resultado.stderr, height=100)
+                    st.error(f"Erro na conversão: {response.status_code} - {response.text}")
+
         except Exception as e:
-            st.error(f"Erro ao executar Ghostscript: {str(e)}")
+            st.error(f"Erro ao processar a conversão: {str(e)}")
+
 
 # ============================================
 # 🏠 Interface Principal
