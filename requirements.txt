@@ -1,8 +1,2 @@
 streamlit
-Pillow
-PyPDF2
-pdf2docx
-pdf2image
-pytesseract
-img2pdf
 requests
