@@ -681,6 +681,7 @@ def pdf_para_pdfa():
             st.error(f"Erro na convers\u00e3o: {str(e)}")
 
 
+
 # ============================================
 # 🏠 Interface Principal
 # ============================================
