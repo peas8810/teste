@@ -638,10 +638,20 @@ def pdf_para_pdfa():
         try:
             with st.spinner("Enviando arquivo para a API do PDF4me..."):
                 api_key = "ZTk0M2I1ODMtMWMyNi00NjViLWI4MWMtYjhhYzQ5ZjlhYTI3OjJnNUJKUGNjRlF6UjZPRWl1SkF1YUx1RTEmcVF4SE9P"
+
+                # Cria payload para a API
+                files = {
+                    "file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")
+                }
+
+                headers = {
+                    "Authorization": f"Bearer {api_key}"
+                }
+
                 response = requests.post(
-                    url="https://api.pdf4me.com/v1/ConvertToPdfA",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    files={"file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")}
+                    url="https://api.pdf4me.com/api/pdfa",
+                    headers=headers,
+                    files=files
                 )
 
                 if response.status_code == 200:
