@@ -19,7 +19,7 @@ import unicodedata
 import base64
 import tempfile
 import time
-from ilovepdf import ILovePdf
+from ilovepdf
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Tuple
 
