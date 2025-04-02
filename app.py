@@ -623,48 +623,42 @@ def jpg_para_pdf():
 
 
 def pdf_para_pdfa():
-    """Converte PDF para PDF/A usando a API do PDF4me (via JSON base64)"""
-    st.header("📄 PDF para PDF/A (via PDF4me API)")
-    st.info("Esta conversão utiliza a API gratuita do PDF4me. Você tem até 20 conversões por mês no plano gratuito.")
+    """Converte PDF para PDF/A usando Workflow da PDF4me"""
+    st.header("📄 PDF para PDF/A (via PDF4me Workflow API)")
+    st.info("Esta conversão utiliza um workflow criado por você na PDF4me. Até 20 conversões/mês estão disponíveis no plano gratuito.")
 
     uploaded_file = st.file_uploader(
         "Carregue um PDF para converter para PDF/A",
         type=["pdf"],
-        accept_multiple_files=False,
         help="PDFs com até 50 páginas"
     )
 
     if not uploaded_file:
         return
 
-    if st.button("Converter para PDF/A", key="pdf_to_pdfa_api"):
+    if st.button("Converter para PDF/A", key="convert_pdfa_workflow"):
         try:
-            with st.spinner("Convertendo com PDF4me..."):
-                api_key = "ZTk0M2I1ODMtMWMyNi00NjViLWI4MWMtYjhhYzQ5ZjlhYTI3OjJnNUJKUGNjRlF6UjZPRWl1SkF1YUx1RTEmcVF4SE9P"
+            with st.spinner("Enviando arquivo para conversão via Workflow..."):
+                # 🔐 Sua chave de API em formato Basic
+                api_key = "NzU2NmZkOTEtNDk5NC00Y2ViLTgyYTUtZTM1MDE5YmUzYjFlOldId1dENXZLd2swOVc2SGRRa09NdDI5eUZHN1JsWGtQ"
 
-                # Codifica o PDF para base64
-                file_base64 = base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
-
-                # Monta o JSON de acordo com a API
-                payload = {
-                    "document": {
-                        "docData": file_base64
-                    }
+                files = {
+                    "file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")
                 }
 
                 headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
+                    "Authorization": f"Basic {api_key}"
                 }
 
+                # 🧭 Endpoint do seu Workflow
                 response = requests.post(
-                    url="https://api.pdf4me.com/v1/pdfa",
+                    url="https://api.pdf4me.com/Workflows/ca663149-b734-435c-9fa0-1d7609fb18da",
                     headers=headers,
-                    json=payload
+                    files=files
                 )
 
                 if response.status_code == 200:
-                    st.success("✅ Conversão concluída com sucesso!")
+                    st.success("✅ Conversão para PDF/A concluída com sucesso!")
                     st.download_button(
                         label="📥 Baixar PDF/A",
                         data=response.content,
@@ -675,7 +669,8 @@ def pdf_para_pdfa():
                     st.error(f"Erro na conversão: {response.status_code} - {response.text}")
 
         except Exception as e:
-            st.error(f"Erro ao processar a conversão: {str(e)}")
+            st.error(f"Erro durante a conversão: {str(e)}")
+
 
 # ============================================
 # 🏠 Interface Principal
