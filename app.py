@@ -319,7 +319,7 @@ def pdf_para_jpg():
     if st.button("Converter para JPG", key="pdf_to_jpg"):
         try:
             with st.spinner("Enviando PDF para conversão..."):
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+                files = {"file": ("arquivo.pdf", uploaded_file.getvalue(), "application/pdf")}
                 response = requests.post("https://testejpeg-production.up.railway.app/convert", files=files)
 
                 if response.status_code == 200:
