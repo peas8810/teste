@@ -620,7 +620,7 @@ def jpg_para_pdf():
             st.error(f"Erro ao converter imagens para PDF: {str(e)}")
 
 def pdf_para_pdfa():
-    """Converte PDF para PDF/A usando a API do PDF4me"""
+    """Converte PDF para PDF/A usando a API do PDF4me (via JSON base64)"""
     st.header("📄 PDF para PDF/A (via PDF4me API)")
     st.info("Esta conversão utiliza a API gratuita do PDF4me. Você tem até 20 conversões por mês no plano gratuito.")
 
@@ -636,22 +636,28 @@ def pdf_para_pdfa():
 
     if st.button("Converter para PDF/A", key="pdf_to_pdfa_api"):
         try:
-            with st.spinner("Enviando arquivo para a API do PDF4me..."):
+            with st.spinner("Convertendo com PDF4me..."):
                 api_key = "ZTk0M2I1ODMtMWMyNi00NjViLWI4MWMtYjhhYzQ5ZjlhYTI3OjJnNUJKUGNjRlF6UjZPRWl1SkF1YUx1RTEmcVF4SE9P"
 
-                # Cria payload para a API
-                files = {
-                    "file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")
+                # Codifica o PDF para base64
+                file_base64 = base64.b64encode(uploaded_file.getvalue()).decode("utf-8")
+
+                # Monta o JSON de acordo com a API
+                payload = {
+                    "document": {
+                        "docData": file_base64
+                    }
                 }
 
                 headers = {
-                    "Authorization": f"Bearer {api_key}"
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
                 }
 
                 response = requests.post(
                     url="https://api.pdf4me.com/v1/pdfa",
                     headers=headers,
-                    files=files
+                    json=payload
                 )
 
                 if response.status_code == 200:
@@ -667,8 +673,6 @@ def pdf_para_pdfa():
 
         except Exception as e:
             st.error(f"Erro ao processar a conversão: {str(e)}")
-
-
 # ============================================
 # 🏠 Interface Principal
 # ============================================
