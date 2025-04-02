@@ -24,17 +24,8 @@ from typing import List, Optional, Tuple
 # Configuração de cache para melhor performance
 st.set_page_config(page_title="Conversor de Documentos", page_icon="📄", layout="wide")
 
-# ============================================
-# 🔐 Configurações de Autenticação (com suas credenciais)
-# ============================================
-CLIENT_ID = "3290c2d6-65ed-4a1d-bac3-93882999cb21"
-CLIENT_SECRET = "04H8Q~4Pklz1rb4SItbigqnY5s9zkrU_U3WF4a1B"
-TENANT_ID = "eef3c8f5-161e-4227-b779-7bb58821ba2d"
-
-# Configurações do Microsoft Graph
-SCOPE = "https://graph.microsoft.com/.default"
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-GRAPH_ENDPOINT = "https://graph.microsoft.com/v1.0"
+# Endpoint da sua API Railway (com LibreOffice):
+RAILWAY_API_URL = "https://testepdf-production.up.railway.app/convert"
 
 # ============================================
 # 📁 Configuração de diretórios temporários
@@ -228,58 +219,43 @@ def converter_para_pdf(token, file_id):
 def word_para_pdf():
     st.title("Conversor Word para PDF")
     st.markdown("""
-    Converta seus arquivos Word (.docx) para PDF usando o Microsoft Graph API
+    Converta seus arquivos Word (.docx) para PDF usando a API da Railway com LibreOffice
     """)
-    
+
     arquivos = st.file_uploader(
         "Selecione arquivos .docx", 
         type=["docx"], 
         accept_multiple_files=True,
         help="Arquivos com até 15MB cada"
     )
-    
+
     if not arquivos:
         return
-    
+
     if st.button("Converter para PDF"):
-        token = obter_token()
-        if not token:
-            st.error("Falha na autenticação. Verifique as credenciais.")
-            return
-            
         with st.spinner("Processando arquivos..."):
             for arquivo in arquivos:
                 try:
-                    # 1. Preparar nome do arquivo
-                    nome_limpo = sanitizar_nome_arquivo(arquivo.name)
-                    
-                    # 2. Fazer upload
-                    sucesso, resultado = upload_arquivo(token, arquivo.getvalue(), nome_limpo)
-                    
-                    if not sucesso:
-                        st.error(f"Erro no upload: {resultado}")
-                        continue
-                        
-                    # 3. Converter para PDF
-                    pdf_content = converter_para_pdf(token, resultado)
-                    
-                    # 4. Salvar resultado temporário
-                    nome_pdf = os.path.splitext(nome_limpo)[0] + ".pdf"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                        tmp.write(pdf_content)
-                        tmp_path = tmp.name
-                    
-                    # 5. Criar link de download
-                    with open(tmp_path, "rb") as f:
+                    # Enviar o arquivo para a API
+                    files = {"file": (arquivo.name, arquivo.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+                    response = requests.post(RAILWAY_API_URL, files=files)
+
+                    if response.status_code == 200:
+                        # Nome do PDF
+                        nome_pdf = os.path.splitext(arquivo.name)[0] + ".pdf"
+
+                        # Criar link de download
                         st.download_button(
                             label=f"Baixar {nome_pdf}",
-                            data=f,
+                            data=response.content,
                             file_name=nome_pdf,
                             mime="application/pdf"
                         )
-                    
-                    st.success(f"Conversão concluída: {nome_limpo}")
-                    
+
+                        st.success(f"Conversão concluída: {arquivo.name}")
+                    else:
+                        st.error(f"Erro na conversão: {response.status_code} - {response.text}")
+
                 except Exception as e:
                     st.error(f"Erro ao processar {arquivo.name}: {str(e)}")
 
