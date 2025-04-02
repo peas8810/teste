@@ -302,46 +302,52 @@ def pdf_para_jpg():
     """Converte PDF para imagens JPG"""
     st.header("📄 PDF para JPG")
     st.info("Cada página do PDF será convertida em uma imagem separada.")
-    
+
     uploaded_file = st.file_uploader(
         "Carregue um arquivo PDF",
         type=["pdf"],
         accept_multiple_files=False,
         help="PDFs com até 20 páginas para melhor performance"
     )
-    
+
     if not uploaded_file:
         return
-    
+
     if st.button("Converter para JPG", key="pdf_to_jpg"):
         try:
+            # Verifica se o Poppler está disponível
+            pdftoppm_path = shutil.which("pdftoppm")
+            if not pdftoppm_path:
+                st.error("❌ O utilitário Poppler (pdftoppm) não está instalado ou não está no PATH.\n\n"
+                         "Para converter PDF em imagens, instale o pacote `poppler-utils` no seu sistema.")
+                return
+
             with st.spinner("Convertendo PDF para imagens..."):
                 caminho = salvar_arquivos([uploaded_file])[0]
                 nome_base = os.path.splitext(os.path.basename(caminho))[0]
-                
-                # Configuração para melhor qualidade
+
                 imagens = convert_from_path(
                     caminho,
                     dpi=300,
                     fmt='jpeg',
                     thread_count=4,
-                    poppler_path=shutil.which("poppler") or "/usr/bin"
+                    poppler_path=os.path.dirname(pdftoppm_path)
                 )
-                
+
                 # Cria um ZIP com todas as imagens
                 zip_nome = f"pdf_images_{nome_base}.zip"
                 zip_path = os.path.join(WORK_DIR, zip_nome)
-                
+
                 with zipfile.ZipFile(zip_path, 'w') as zipf:
                     for i, img in enumerate(imagens):
                         img_nome = f"{nome_base}_pag{i+1}.jpg"
                         img_path = os.path.join(WORK_DIR, img_nome)
                         img.save(img_path, "JPEG", quality=90)
                         zipf.write(img_path, img_nome)
-                
-                st.success(f"Convertido {len(imagens)} páginas!")
+
+                st.success(f"Convertido {len(imagens)} páginas com sucesso!")
                 criar_link_download(zip_nome, "📥 Baixar todas as imagens (ZIP)", "application/zip")
-                
+
         except Exception as e:
             st.error(f"Erro na conversão: {str(e)}")
 
