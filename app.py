@@ -19,6 +19,7 @@ import unicodedata
 import base64
 import tempfile
 import time
+from ilovepdf import ILovePdf
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Tuple
 
@@ -623,53 +624,61 @@ def jpg_para_pdf():
 
 
 def pdf_para_pdfa():
-    """Converte PDF para PDF/A usando Workflow da PDF4me"""
-    st.header("📄 PDF para PDF/A (via PDF4me Workflow API)")
-    st.info("Esta conversão utiliza um workflow criado por você na PDF4me. Até 20 conversões/mês estão disponíveis no plano gratuito.")
+    st.header("\ud83d\udcc4 PDF para PDF/A (via iLovePDF API)")
+    st.info("Convers\u00e3o segura via API gratuita do iLovePDF. At\u00e9 250 tarefas/m\u00eas.")
 
     uploaded_file = st.file_uploader(
         "Carregue um PDF para converter para PDF/A",
-        type=["pdf"],
-        help="PDFs com até 50 páginas"
+        type=["pdf"]
     )
 
     if not uploaded_file:
         return
 
-    if st.button("Converter para PDF/A", key="convert_pdfa_workflow"):
+    if st.button("Converter com iLovePDF"):
         try:
-            with st.spinner("Enviando arquivo para conversão via Workflow..."):
-                # 🔐 Sua chave de API em formato Basic
-                api_key = "NzU2NmZkOTEtNDk5NC00Y2ViLTgyYTUtZTM1MDE5YmUzYjFlOldId1dENXZLd2swOVc2SGRRa09NdDI5eUZHN1JsWGtQ"
+            with st.spinner("Convertendo PDF para PDF/A via iLovePDF..."):
+                # Chave secreta da API iLovePDF
+                secret_key = "secret_key_0e40447ee217acad6c5393c3303f2562_YIoKJd607926c84fbb59df3e9bd7faa32570a"
 
-                files = {
-                    "file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")
-                }
+                # Inicializa o cliente
+                ilovepdf = ILovePdf(secret_key, verify_ssl=True)
 
-                headers = {
-                    "Authorization": f"Basic {api_key}"
-                }
+                # Cria a tarefa PDF/A
+                task = ilovepdf.new_task("pdfa")
 
-                # 🧭 Endpoint do seu Workflow
-                response = requests.post(
-                    url="https://api.pdf4me.com/Workflows/ca663149-b734-435c-9fa0-1d7609fb18da",
-                    headers=headers,
-                    files=files
-                )
+                # Salva temporariamente o arquivo
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    input_path = tmp_file.name
 
-                if response.status_code == 200:
-                    st.success("✅ Conversão para PDF/A concluída com sucesso!")
+                # Adiciona \u00e0 tarefa
+                task.add_file(input_path)
+
+                # Define os par\u00e2metros PDF/A
+                task.process({
+                    "conformance": "pdfa-2b",
+                    "allow_downgrade": False
+                })
+
+                # Baixa o resultado
+                output_path = input_path.replace(".pdf", "_pdfa.pdf")
+                task.download(output_path)
+
+                with open(output_path, "rb") as f:
+                    st.success("\u2705 Convers\u00e3o conclu\u00edda com sucesso!")
                     st.download_button(
-                        label="📥 Baixar PDF/A",
-                        data=response.content,
-                        file_name="pdfa_" + uploaded_file.name,
+                        label="\ud83d\udcc5 Baixar PDF/A",
+                        data=f.read(),
+                        file_name="convertido_pdfa.pdf",
                         mime="application/pdf"
                     )
-                else:
-                    st.error(f"Erro na conversão: {response.status_code} - {response.text}")
+
+                os.remove(input_path)
+                os.remove(output_path)
 
         except Exception as e:
-            st.error(f"Erro durante a conversão: {str(e)}")
+            st.error(f"Erro na convers\u00e3o: {str(e)}")
 
 
 # ============================================
