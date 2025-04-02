@@ -319,11 +319,12 @@ def pdf_para_jpg():
     if st.button("Converter para JPG", key="pdf_to_jpg"):
         try:
             with st.spinner("Enviando PDF para conversão..."):
-                files = {"file": ("arquivo.pdf", uploaded_file.getvalue(), "application/pdf")}
-                response = requests.post("https://testejpeg-production.up.railway.app/convert", files=files)
+                # Força nome correto e MIME correto
+                files = {"file": ("documento.pdf", uploaded_file.getvalue(), "application/pdf")}
+                response = requests.post("https://testejpeg-production.up.railway.app/convert-pdf-jpg", files=files)
 
                 if response.status_code == 200:
-                    nome_zip = os.path.splitext(uploaded_file.name)[0] + "_imagens.zip"
+                    nome_zip = "imagens_convertidas.zip"
                     st.download_button(
                         label=f"📥 Baixar {nome_zip}",
                         data=response.content,
