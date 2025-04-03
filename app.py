@@ -43,19 +43,20 @@ if st.button("🔄 Processar", type="primary"):
     else:
         with st.spinner("Processando seus arquivos..."):
             try:
-                # Garantir que temos uma lista de arquivos
-                arquivos_lista = arquivos if isinstance(arquivos, list) else [arquivos]
-
-                # CORREÇÃO PRINCIPAL AQUI - FORMATO CORRETO
-                arquivos_envio = []
-                for arquivo in arquivos_lista:
-                    if arquivo is not None:
-                        file_tuple = ("files", (arquivo.name, arquivo.getvalue(), arquivo.type))
-                        arquivos_envio.append(file_tuple)
+                # ... (código anterior mantido)
                 
-                # Verificar se há arquivos para enviar
-                if not arquivos_envio:
-                    st.error("Nenhum arquivo válido para processar.")
+                resposta = requests.post(
+                    f"{API_URL}{endpoint_api}",
+                    files=arquivos_envio,
+                    timeout=300
+                )
+
+                if resposta.status_code == 500 and "libreoffice" in resposta.text.lower():
+                    st.error("""
+                    **Erro de configuração do servidor:**
+                    O serviço de conversão não está disponível no momento.
+                    Por favor, tente novamente mais tarde ou entre em contato com o suporte.
+                    """)
                     st.stop()
 
                 # Enviar requisição para a API
