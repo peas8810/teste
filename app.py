@@ -1,7 +1,5 @@
-# app.py (Streamlit Interface) - Versão Final Corrigida
 import streamlit as st
 import requests
-import os
 
 API_URL = "https://geral-pdf.onrender.com"  # URL da API FastAPI
 
