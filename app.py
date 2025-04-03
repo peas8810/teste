@@ -37,9 +37,14 @@ if st.button("🔄 Processar"):
     else:
         with st.spinner("Processando com IA..."):
             try:
-                files = [
-                    ("files", (arq.name, BytesIO(arq.getvalue()), arq.type)) for arq in arquivos if arq is not None
-                ]
+                if not isinstance(arquivos, list):
+                    arquivos = [arquivos]
+
+                files = []
+                for arq in arquivos:
+                    if arq is not None:
+                        file_bytes = arq.read()
+                        files.append(("files", (arq.name, file_bytes, arq.type)))
 
                 if not files:
                     st.error("Erro: Nenhum arquivo válido para processar.")
