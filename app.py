@@ -1,77 +1,64 @@
-# app.py (Streamlit Interface)
+# app.py (Streamlit)
 import streamlit as st
 import requests
 import os
-from io import BytesIO
-
-API_URL = "https://geral-pdf.onrender.com"  # URL da sua API FastAPI
 
 st.set_page_config(page_title="Conversor de Documentos", layout="centered")
 st.title("📄 Conversor de Documentos com IA")
 
+# APIs separadas por serviço
+API_RENDER = "https://geral-pdf.onrender.com"
+API_WORD = "https://testepdf-production.up.railway.app"
+API_JPG = "https://testejpeg-production.up.railway.app"
+
 abas = [
-    ("Word → PDF", "/word-para-pdf", ["doc", "docx", "odt", "rtf"], True),
-    ("Word → PDF (Lote)", "/word-para-pdf", ["doc", "docx", "odt", "rtf"], True),
-    ("PDF → Word", "/pdf-para-word", ["pdf"], False),
-    ("PDF → JPG", "/pdf-para-jpg", ["pdf"], False),
-    ("Imagem → PDF", "/jpg-para-pdf", ["jpg", "jpeg", "png"], True),
-    ("Juntar PDF", "/juntar-pdfs", ["pdf"], True),
-    ("Dividir PDF", "/dividir-pdf", ["pdf"], False),
-    ("OCR em PDF", "/ocr-pdf", ["pdf"], False),
-    ("OCR em Imagens", "/ocr-imagem", ["jpg", "jpeg", "png"], True),
-    ("PDF → PDF/A", "/pdf-para-pdfa", ["pdf"], False)
+    ("Word → PDF", API_WORD + "/convert", ["doc", "docx"], False),
+    ("PDF → JPG", API_JPG + "/pdf-para-jpg", ["pdf"], False),
+    ("PDF → Word", API_RENDER + "/pdf-para-word", ["pdf"], False),
+    ("Imagem → PDF", API_RENDER + "/jpg-para-pdf", ["jpg", "jpeg", "png"], True),
+    ("Juntar PDF", API_RENDER + "/juntar-pdfs", ["pdf"], True),
+    ("Dividir PDF", API_RENDER + "/dividir-pdf", ["pdf"], False),
+    ("OCR em PDF", API_RENDER + "/ocr-pdf", ["pdf"], False),
+    ("OCR em Imagem", API_RENDER + "/ocr-imagem", ["jpg", "jpeg", "png"], True),
+    ("PDF → PDF/A", API_RENDER + "/pdf-para-pdfa", ["pdf"], False)
 ]
 
 aba_escolhida = st.selectbox("Escolha a funcionalidade:", [a[0] for a in abas])
-selecionada = next(a for a in abas if a[0] == aba_escolhida)
+nome, endpoint, tipos, multiplo = next(a for a in abas if a[0] == aba_escolhida)
 
-multiplos = selecionada[3]
-tipos = selecionada[2]
-endpoint = selecionada[1]
-
-arquivos = st.file_uploader("Envie o(s) arquivo(s):", type=tipos, accept_multiple_files=multiplos)
+arquivos = st.file_uploader("Envie o(s) arquivo(s):", type=tipos, accept_multiple_files=multiplo)
 
 if st.button("🔄 Processar"):
     if not arquivos:
-        st.warning("Por favor, envie ao menos um arquivo válido.")
+        st.warning("Por favor, envie ao menos um arquivo.")
     else:
-        with st.spinner("Processando com IA..."):
+        with st.spinner("Processando..."):
             try:
                 if not isinstance(arquivos, list):
-                    arquivos_envio = [arquivos]
-                else:
-                    arquivos_envio = arquivos
+                    arquivos = [arquivos]
 
                 files = []
-                for arq in arquivos_envio:
-                    file_bytes = arq.read()
-                    files.append(("files", (arq.name, file_bytes, arq.type)))
+                key = "files" if multiplo or nome not in ["PDF → Word", "OCR em PDF", "PDF → JPG", "PDF → PDF/A"] else "file"
+                for arq in arquivos:
+                    files.append((key, (arq.name, arq.read(), arq.type)))
 
-                response = requests.post(API_URL + endpoint, files=files)
+                response = requests.post(endpoint, files=files)
 
                 if response.status_code == 200:
                     content_type = response.headers.get("content-type", "")
-
                     if "application/json" in content_type:
                         dados = response.json()
                         chaves = dados.get("arquivos") or dados.get("imagens")
                         if chaves:
-                            for caminho in chaves:
-                                nome = os.path.basename(caminho)
-                                st.success(f"✅ Arquivo gerado: {nome}")
-                                with open(caminho, "rb") as f:
-                                    st.download_button(
-                                        label="📥 Baixar",
-                                        data=f.read(),
-                                        file_name=nome,
-                                        mime="application/octet-stream"
-                                    )
+                            for item in chaves:
+                                nome_arquivo = os.path.basename(item)
+                                st.success(f"✅ Arquivo gerado: {nome_arquivo}")
                         else:
-                            st.info("⚠️ Nenhum arquivo gerado. Veja a resposta da API abaixo:")
+                            st.info("✅ Processado, mas nenhum arquivo retornado.")
                             st.json(dados)
                     else:
                         st.download_button("📥 Baixar Resultado", data=response.content, file_name="resultado")
                 else:
-                    st.error(f"Erro: {response.status_code} - {response.text}")
+                    st.error(f"Erro {response.status_code}: {response.text}")
             except Exception as e:
-                st.error(f"Erro inesperado: {str(e)}")
+                st.error(f"Erro ao processar: {e}")
