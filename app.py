@@ -1,8 +1,7 @@
-# app.py (Streamlit Interface) - Versão Corrigida
+# app.py (Streamlit Interface) - Versão Final Corrigida
 import streamlit as st
 import requests
 import os
-from io import BytesIO
 
 API_URL = "https://geral-pdf.onrender.com"  # URL da API FastAPI
 
@@ -49,12 +48,12 @@ if st.button("🔄 Processar", type="primary"):
                 # Garantir que temos uma lista de arquivos
                 arquivos_lista = arquivos if isinstance(arquivos, list) else [arquivos]
 
-                # Preparar os arquivos para envio à API
+                # CORREÇÃO PRINCIPAL AQUI - FORMATO CORRETO
                 arquivos_envio = []
                 for arquivo in arquivos_lista:
                     if arquivo is not None:
-                        arquivos_envio.append(
-                            ("files", (arquivo.name, arquivo.getvalue(), arquivo.type))
+                        file_tuple = ("files", (arquivo.name, arquivo.getvalue(), arquivo.type))
+                        arquivos_envio.append(file_tuple)
                 
                 # Verificar se há arquivos para enviar
                 if not arquivos_envio:
@@ -65,14 +64,13 @@ if st.button("🔄 Processar", type="primary"):
                 resposta = requests.post(
                     f"{API_URL}{endpoint_api}",
                     files=arquivos_envio,
-                    timeout=300  # Timeout aumentado para 5 minutos
+                    timeout=300
                 )
 
                 # Processar a resposta
                 if resposta.status_code == 200:
                     tipo_conteudo = resposta.headers.get("content-type", "")
                     
-                    # Caso 1: Resposta é um JSON com links para download
                     if "application/json" in tipo_conteudo:
                         dados = resposta.json()
                         
@@ -84,29 +82,15 @@ if st.button("🔄 Processar", type="primary"):
                                 for arquivo in arquivos_processados:
                                     nome_arquivo = os.path.basename(arquivo)
                                     link_download = f"{API_URL}{arquivo}"
-                                    st.markdown(f"""
-                                    **Arquivo gerado:** {nome_arquivo}  
-                                    [🔗 Baixar arquivo]({link_download})
-                                    """)
+                                    st.markdown(f"**Arquivo gerado:** {nome_arquivo}  \n[🔗 Baixar arquivo]({link_download})")
                             else:
                                 st.error("Nenhum arquivo foi gerado durante o processamento.")
                         else:
                             st.error("Resposta inesperada da API.")
                             st.json(dados)
                     
-                    # Caso 2: Resposta é um arquivo direto (PDF, DOCX, etc)
-                    elif any(t in tipo_conteudo for t in [
-                        "application/pdf",
-                        "image/",
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    ]):
-                        extensao = {
-                            "application/pdf": "pdf",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-                            "image/jpeg": "jpg",
-                            "image/png": "png"
-                        }.get(tipo_conteudo, "bin")
-                        
+                    elif any(t in tipo_conteudo for t in ["application/pdf", "image/", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]):
+                        extensao = "pdf" if "application/pdf" in tipo_conteudo else "docx" if "application/vnd.openxmlformats-officedocument.wordprocessingml.document" in tipo_conteudo else "jpg"
                         st.download_button(
                             label="📥 Baixar Resultado",
                             data=resposta.content,
@@ -118,15 +102,10 @@ if st.button("🔄 Processar", type="primary"):
                 
                 else:
                     st.error(f"Erro na API (HTTP {resposta.status_code}):")
-                    try:
-                        st.json(resposta.json())
-                    except:
-                        st.text(resposta.text)
+                    st.text(resposta.text)
             
             except requests.exceptions.Timeout:
                 st.error("O tempo de processamento excedeu o limite. Tente novamente com arquivos menores.")
-            except requests.exceptions.RequestException as e:
-                st.error(f"Erro de conexão com a API: {str(e)}")
             except Exception as e:
                 st.error(f"Erro inesperado: {str(e)}")
 
