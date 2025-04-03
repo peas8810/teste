@@ -1,117 +1,77 @@
+# app.py (Streamlit Interface)
 import streamlit as st
 import requests
+import os
+from io import BytesIO
 
-API_URL = "https://geral-pdf.onrender.com"  # URL da API FastAPI
+API_URL = "https://geral-pdf.onrender.com"  # URL da sua API FastAPI
 
-# Configuração da página
 st.set_page_config(page_title="Conversor de Documentos", layout="centered")
-st.title("📄 Conversor de Documentos")
+st.title("📄 Conversor de Documentos com IA")
 
-# Configuração das funcionalidades
-funcionalidades = [
-    ("Word para PDF", "/word-para-pdf", ["doc", "docx", "odt", "rtf"], True),
-    ("PDF para Word", "/pdf-para-word", ["pdf"], False),
-    ("PDF para JPG", "/pdf-para-jpg", ["pdf"], False),
-    ("Imagem para PDF", "/jpg-para-pdf", ["jpg", "jpeg", "png"], True),
-    ("Juntar PDFs", "/juntar-pdfs", ["pdf"], True),
+abas = [
+    ("Word → PDF", "/word-para-pdf", ["doc", "docx", "odt", "rtf"], True),
+    ("Word → PDF (Lote)", "/word-para-pdf", ["doc", "docx", "odt", "rtf"], True),
+    ("PDF → Word", "/pdf-para-word", ["pdf"], False),
+    ("PDF → JPG", "/pdf-para-jpg", ["pdf"], False),
+    ("Imagem → PDF", "/jpg-para-pdf", ["jpg", "jpeg", "png"], True),
+    ("Juntar PDF", "/juntar-pdfs", ["pdf"], True),
     ("Dividir PDF", "/dividir-pdf", ["pdf"], False),
     ("OCR em PDF", "/ocr-pdf", ["pdf"], False),
     ("OCR em Imagens", "/ocr-imagem", ["jpg", "jpeg", "png"], True),
-    ("Converter para PDF/A", "/pdf-para-pdfa", ["pdf"], False)
+    ("PDF → PDF/A", "/pdf-para-pdfa", ["pdf"], False)
 ]
 
-# Interface do usuário
-funcionalidade = st.selectbox("Escolha a funcionalidade:", [f[0] for f in funcionalidades])
-selecionada = next(f for f in funcionalidades if f[0] == funcionalidade)
+aba_escolhida = st.selectbox("Escolha a funcionalidade:", [a[0] for a in abas])
+selecionada = next(a for a in abas if a[0] == aba_escolhida)
 
-# Configurações baseadas na seleção
-multiplos_arquivos = selecionada[3]
-tipos_arquivos = selecionada[2]
-endpoint_api = selecionada[1]
+multiplos = selecionada[3]
+tipos = selecionada[2]
+endpoint = selecionada[1]
 
-# Upload de arquivos
-arquivos = st.file_uploader(
-    "Envie o(s) arquivo(s):",
-    type=tipos_arquivos,
-    accept_multiple_files=multiplos_arquivos,
-    help="Selecione os arquivos para processamento"
-)
+arquivos = st.file_uploader("Envie o(s) arquivo(s):", type=tipos, accept_multiple_files=multiplos)
 
-if st.button("🔄 Processar", type="primary"):
+if st.button("🔄 Processar"):
     if not arquivos:
         st.warning("Por favor, envie ao menos um arquivo válido.")
     else:
-        with st.spinner("Processando seus arquivos..."):
+        with st.spinner("Processando com IA..."):
             try:
-                # ... (código anterior mantido)
-                
-                resposta = requests.post(
-                    f"{API_URL}{endpoint_api}",
-                    files=arquivos_envio,
-                    timeout=300
-                )
-
-                if resposta.status_code == 500 and "libreoffice" in resposta.text.lower():
-                    st.error("""
-                    **Erro de configuração do servidor:**
-                    O serviço de conversão não está disponível no momento.
-                    Por favor, tente novamente mais tarde ou entre em contato com o suporte.
-                    """)
-                    st.stop()
-
-                # Enviar requisição para a API
-                resposta = requests.post(
-                    f"{API_URL}{endpoint_api}",
-                    files=arquivos_envio,
-                    timeout=300
-                )
-
-                # Processar a resposta
-                if resposta.status_code == 200:
-                    tipo_conteudo = resposta.headers.get("content-type", "")
-                    
-                    if "application/json" in tipo_conteudo:
-                        dados = resposta.json()
-                        
-                        if "arquivos" in dados or "imagens" in dados:
-                            arquivos_processados = dados.get("arquivos", []) + dados.get("imagens", [])
-                            
-                            if arquivos_processados:
-                                st.success("Processamento concluído com sucesso!")
-                                for arquivo in arquivos_processados:
-                                    nome_arquivo = os.path.basename(arquivo)
-                                    link_download = f"{API_URL}{arquivo}"
-                                    st.markdown(f"**Arquivo gerado:** {nome_arquivo}  \n[🔗 Baixar arquivo]({link_download})")
-                            else:
-                                st.error("Nenhum arquivo foi gerado durante o processamento.")
-                        else:
-                            st.error("Resposta inesperada da API.")
-                            st.json(dados)
-                    
-                    elif any(t in tipo_conteudo for t in ["application/pdf", "image/", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]):
-                        extensao = "pdf" if "application/pdf" in tipo_conteudo else "docx" if "application/vnd.openxmlformats-officedocument.wordprocessingml.document" in tipo_conteudo else "jpg"
-                        st.download_button(
-                            label="📥 Baixar Resultado",
-                            data=resposta.content,
-                            file_name=f"resultado.{extensao}",
-                            mime=tipo_conteudo
-                        )
-                    else:
-                        st.error("Tipo de resposta não suportado pela aplicação.")
-                
+                if not isinstance(arquivos, list):
+                    arquivos_envio = [arquivos]
                 else:
-                    st.error(f"Erro na API (HTTP {resposta.status_code}):")
-                    st.text(resposta.text)
-            
-            except requests.exceptions.Timeout:
-                st.error("O tempo de processamento excedeu o limite. Tente novamente com arquivos menores.")
+                    arquivos_envio = arquivos
+
+                files = []
+                for arq in arquivos_envio:
+                    file_bytes = arq.read()
+                    files.append(("files", (arq.name, file_bytes, arq.type)))
+
+                response = requests.post(API_URL + endpoint, files=files)
+
+                if response.status_code == 200:
+                    content_type = response.headers.get("content-type", "")
+
+                    if "application/json" in content_type:
+                        dados = response.json()
+                        chaves = dados.get("arquivos") or dados.get("imagens")
+                        if chaves:
+                            for caminho in chaves:
+                                nome = os.path.basename(caminho)
+                                st.success(f"✅ Arquivo gerado: {nome}")
+                                with open(caminho, "rb") as f:
+                                    st.download_button(
+                                        label="📥 Baixar",
+                                        data=f.read(),
+                                        file_name=nome,
+                                        mime="application/octet-stream"
+                                    )
+                        else:
+                            st.info("⚠️ Nenhum arquivo gerado. Veja a resposta da API abaixo:")
+                            st.json(dados)
+                    else:
+                        st.download_button("📥 Baixar Resultado", data=response.content, file_name="resultado")
+                else:
+                    st.error(f"Erro: {response.status_code} - {response.text}")
             except Exception as e:
                 st.error(f"Erro inesperado: {str(e)}")
-
-# Adicionar informações de ajuda
-st.sidebar.markdown("""
-### Ajuda
-- Para conversões em lote, selecione vários arquivos
-- Arquivos grandes podem demorar mais para processar
-- Problemas? Recarregue a página e tente novamente
-""")
