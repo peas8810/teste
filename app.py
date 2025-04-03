@@ -129,7 +129,6 @@ if st.button("🔄 Processar", type="primary"):
                 st.error(f"Erro de conexão com a API: {str(e)}")
             except Exception as e:
                 st.error(f"Erro inesperado: {str(e)}")
-                st.exception(e)
 
 # Adicionar informações de ajuda
 st.sidebar.markdown("""
