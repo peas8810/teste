@@ -1,2 +1,5 @@
 streamlit
 requests
+PdfMerger
+PdfReader
+PdfWriter
