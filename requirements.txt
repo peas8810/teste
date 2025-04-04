@@ -1,8 +1,8 @@
-shutil
-time
-zipfile
-subprocess
-uuid
 streamlit
+PyPDF2
+pdf2docx
+pillow
 pytesseract
+pdf2image
 img2pdf
+unoserver
