@@ -1,5 +1,8 @@
+shutil
+time
+zipfile
+subprocess
+uuid
 streamlit
-requests
-PdfMerger
-PdfReader
-PdfWriter
+pytesseract
+img2pdf
