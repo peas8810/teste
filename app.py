@@ -134,7 +134,7 @@ if uploaded:
 # 📋 Registro de Usuário (ao final)
 # =============================
 st.markdown("---")
-st.subheader("📋 Cadastre-se para Receber Novidades")
+st.subheader("📋 Cadastre-se")
 nome = st.text_input("Nome completo", key="nome")
 email = st.text_input("E-mail", key="email")
 if st.button("Registrar meus dados"):
