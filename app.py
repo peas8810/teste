@@ -1,6 +1,5 @@
 import re
 import numpy as np
-import pandas as pd
 import pdfplumber
 from fpdf import FPDF
 from transformers import RobertaTokenizer, RobertaForSequenceClassification
@@ -30,7 +29,7 @@ def salvar_email_google_sheets(nome, email, codigo="N/A"):
         st.error(f"❌ Erro na conexão com o Google Sheets: {e}")
 
 # =============================
-# 💾 Carregamento do Modelo Roberta (usando cache_resource)
+# 💾 Carregamento do Modelo Roberta (recurso pesado)
 # =============================
 @st.cache_resource
 def load_model():
@@ -56,9 +55,8 @@ def preprocess_text(text: str) -> str:
 def analyze_text_roberta(text: str) -> float:
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
     outputs = model(**inputs)
-    logits = outputs.logits
-    probability = torch.softmax(logits, dim=1)[0, 1].item()
-    return probability * 100  # porcentagem
+    prob = torch.softmax(outputs.logits, dim=1)[0, 1].item()
+    return prob * 100
 
 def calculate_entropy(text: str) -> float:
     probs = np.array([text.count(c) / len(text) for c in set(text)])
@@ -100,9 +98,42 @@ class PDFReport(FPDF):
 def generate_pdf_report(results: dict) -> str:
     pdf = PDFReport()
     pdf.add_page()
-    pdf.multi_cell(0, 8, 'Este relatório apresenta uma estimativa sobre a probabilidade de o texto ter sido gerado por IA.')
+
+    # Introdução
+    pdf.multi_cell(
+        0, 8,
+        'Este relatório apresenta uma estimativa sobre a probabilidade de o texto ter sido gerado por IA.'
+    )
     pdf.ln(5)
+
+    # Resultados numéricos
     pdf.add_results(results)
+
+    # Explicação detalhada da Avaliação Roberta
+    roberta_value = results['Roberta (IA)']
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, 'O que é a "Avaliação Roberta (Confiabilidade IA)"?', ln=True)
+    pdf.set_font('Arial', '', 12)
+    pdf.multi_cell(
+        0, 8,
+        f"A 'Avaliação Roberta (Confiabilidade IA)' representa a pontuação gerada pelo modelo RoBERTa "
+        f"para indicar a probabilidade de que um texto tenha sido escrito por IA. No seu relatório, o "
+        f"modelo atribuiu **{roberta_value}**.\n\n"
+        "Como funciona o RoBERTa:\n"
+        "O RoBERTa (Robustly optimized BERT approach) é um modelo de NLP da Meta (Facebook AI), treinado "
+        "com grandes volumes de texto para análises semânticas profundas.\n\n"
+        "Critérios avaliados:\n"
+        " - Coesão textual: IA costuma seguir padrões previsíveis.\n"
+        " - Uso de conectores: expressões como 'Portanto', 'Além disso' são frequentes.\n"
+        " - Frases genéricas: construção sofisticada, porém superficial.\n"
+        " - Padrões linguísticos: falta de nuances humanas (ironias, ambiguidade).\n\n"
+        "Interpretação do valor:\n"
+        "0%–30%  → provavel texto humano\n"
+        "30%–60% → área de incerteza\n"
+        "60%–100%→ alta chance de texto IA"
+    )
+
     filename = "relatorio_IA.pdf"
     pdf.output(filename, 'F')
     return filename
@@ -124,7 +155,12 @@ if uploaded:
 
     report_path = generate_pdf_report(resultados)
     with open(report_path, "rb") as f:
-        st.download_button("📥 Baixar Relatório em PDF", f.read(), "relatorio_IA.pdf", "application/pdf")
+        st.download_button(
+            "📥 Baixar Relatório em PDF",
+            f.read(),
+            "relatorio_IA.pdf",
+            "application/pdf"
+        )
 
 # =============================
 # 📋 Registro de Usuário (ao final)
@@ -145,7 +181,6 @@ if st.button("Registrar meus dados"):
 st.markdown("---")
 st.subheader("Publicidade - Anuncie Aqui")
 st.write("📧 Envie sua proposta para: peas8810@gmail.com")
-# Exemplo de banner — substitua pela sua URL
 image_url = "https://via.placeholder.com/728x90.png?text=Anuncie+aqui"
 st.image(image_url, use_container_width=True)
 st.markdown("### Visite nosso site de parceiros")
