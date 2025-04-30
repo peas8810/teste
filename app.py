@@ -84,10 +84,12 @@ def extract_text_from_pdf(pdf_file) -> str:
 
 class PDFReport(FPDF):
     def _encode(self, txt: str) -> str:
+        # substitui en-dash e em-dash por hífen simples
+        txt = txt.replace('–', '-').replace('—', '-')
         try:
             return txt.encode('latin-1', 'replace').decode('latin-1')
         except Exception:
-            return ''.join(c if ord(c) < 256 else '?' for c in txt)
+            return ''.join(c if ord(c) < 256 else '-' for c in txt)
 
     def header(self):
         title = self._encode('Relatório TotalIA - PEAS.Co')
@@ -124,8 +126,8 @@ def generate_pdf_report(results: dict) -> str:
 
     explanation = (
         f"A 'Avaliação Roberta (Confiabilidade IA)' representa a pontuação gerada pelo modelo RoBerta "
-        f"para indicar a probabilidade de que um texto tenha sido escrito por IA. No seu relatório, o "
-        f"modelo atribuiu {roberta_value}.\n\n"
+        f"para indicar a probabilidade de que um texto tenha sido escrito por IA. "
+        f"No seu relatório, o modelo atribuiu {roberta_value}.\n\n"
         "Como funciona o RoBerta:\n"
         "O RoBerta (Robustly optimized BERT approach) é um modelo de NLP da Meta (Facebook AI), treinado "
         "com grandes volumes de texto para análises semânticas profundas.\n\n"
@@ -135,9 +137,9 @@ def generate_pdf_report(results: dict) -> str:
         " - Frases genéricas: construção sofisticada, porém superficial.\n"
         " - Padrões linguísticos: falta de nuances humanas (ironias, ambiguidade).\n\n"
         "Interpretação do valor:\n"
-        "0%–30%  → provável texto humano\n"
-        "30%–60% → área de incerteza\n"
-        "60%–100%→ alta chance de texto IA"
+        "0% - 30%  → provável texto humano\n"
+        "30% - 60% → área de incerteza\n"
+        "60% - 100%→ alta chance de texto IA"
     )
     pdf.set_font('Arial', '', 12)
     pdf.multi_cell(0, 8, pdf._encode(explanation))
@@ -145,6 +147,7 @@ def generate_pdf_report(results: dict) -> str:
     filename = "relatorio_IA.pdf"
     pdf.output(filename, 'F')
     return filename
+
 
 # =============================
 # 🖥️ Interface Streamlit
