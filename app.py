@@ -18,11 +18,7 @@ URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyTpbWDxWkNRh_ZIlHu
 # 📋 Função para Salvar E-mails no Google Sheets
 # =============================
 def salvar_email_google_sheets(nome, email, codigo="N/A"):
-    dados = {
-        "nome": nome,
-        "email": email,
-        "codigo": codigo
-    }
+    dados = {"nome": nome, "email": email, "codigo": codigo}
     try:
         headers = {'Content-Type': 'application/json'}
         response = requests.post(URL_GOOGLE_SHEETS, json=dados, headers=headers)
@@ -34,9 +30,9 @@ def salvar_email_google_sheets(nome, email, codigo="N/A"):
         st.error(f"❌ Erro na conexão com o Google Sheets: {e}")
 
 # =============================
-# 💾 Carregamento do Modelo Roberta
+# 💾 Carregamento do Modelo Roberta (usando cache_resource)
 # =============================
-@st.cache(allow_output_mutation=True)
+@st.cache_resource
 def load_model():
     tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
     model = RobertaForSequenceClassification.from_pretrained('roberta-base')
@@ -51,24 +47,24 @@ except Exception as e:
 # =============================
 # 🔧 Funções de Análise de Texto
 # =============================
-def preprocess_text(text):
+@st.cache_data
+def preprocess_text(text: str) -> str:
     text = text.lower()
     text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    return re.sub(r'\s+', ' ', text).strip()
 
-def analyze_text_roberta(text):
+def analyze_text_roberta(text: str) -> float:
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
     outputs = model(**inputs)
     logits = outputs.logits
     probability = torch.softmax(logits, dim=1)[0, 1].item()
     return probability * 100  # porcentagem
 
-def calculate_entropy(text):
-    probabilities = np.array([text.count(c) / len(text) for c in set(text)])
-    return -np.sum(probabilities * np.log2(probabilities))
+def calculate_entropy(text: str) -> float:
+    probs = np.array([text.count(c) / len(text) for c in set(text)])
+    return -np.sum(probs * np.log2(probs))
 
-def analyze_text(text):
+def analyze_text(text: str) -> dict:
     clean = preprocess_text(text)
     entropy = calculate_entropy(clean)
     roberta_score = analyze_text_roberta(clean)
@@ -82,7 +78,7 @@ def analyze_text(text):
 # =============================
 # 📄 Funções de PDF
 # =============================
-def extract_text_from_pdf(pdf_file):
+def extract_text_from_pdf(pdf_file) -> str:
     text = ""
     with pdfplumber.open(io.BytesIO(pdf_file.read())) as pdf:
         for page in pdf.pages:
@@ -95,13 +91,13 @@ class PDFReport(FPDF):
         self.cell(0, 10, 'Relatório TotalIA - PEAS.Co', ln=True, align='C')
         self.ln(5)
 
-    def add_results(self, results):
+    def add_results(self, results: dict):
         self.set_font('Arial', '', 12)
         for k, v in results.items():
             self.cell(0, 8, f"{k}: {v}", ln=True)
         self.ln(5)
 
-def generate_pdf_report(results):
+def generate_pdf_report(results: dict) -> str:
     pdf = PDFReport()
     pdf.add_page()
     pdf.multi_cell(0, 8, 'Este relatório apresenta uma estimativa sobre a probabilidade de o texto ter sido gerado por IA.')
@@ -134,7 +130,7 @@ if uploaded:
 # 📋 Registro de Usuário (ao final)
 # =============================
 st.markdown("---")
-st.subheader("📋 Registro de Usuário")
+st.subheader("📋 Cadastre-se para Receber Novidades")
 nome = st.text_input("Nome completo", key="nome")
 email = st.text_input("E-mail", key="email")
 if st.button("Registrar meus dados"):
