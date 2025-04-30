@@ -7,7 +7,6 @@ import torch
 import streamlit as st
 import io
 import requests
-import hashlib
 from datetime import datetime
 
 # 🔗 URL da API gerada no Google Sheets
@@ -74,7 +73,7 @@ def analyze_text(text: str) -> dict:
     }
 
 # =============================
-# 📄 Funções de PDF
+# 📄 Funções de PDF (com encoding)
 # =============================
 def extract_text_from_pdf(pdf_file) -> str:
     text = ""
@@ -84,15 +83,23 @@ def extract_text_from_pdf(pdf_file) -> str:
     return text
 
 class PDFReport(FPDF):
+    def _encode(self, txt: str) -> str:
+        try:
+            return txt.encode('latin-1', 'replace').decode('latin-1')
+        except Exception:
+            return ''.join(c if ord(c) < 256 else '?' for c in txt)
+
     def header(self):
+        title = self._encode('Relatório TotalIA - PEAS.Co')
         self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'Relatório TotalIA - PEAS.Co', ln=True, align='C')
+        self.cell(0, 10, title, ln=True, align='C')
         self.ln(5)
 
     def add_results(self, results: dict):
         self.set_font('Arial', '', 12)
         for k, v in results.items():
-            self.cell(0, 8, f"{k}: {v}", ln=True)
+            line = f"{k}: {v}"
+            self.cell(0, 8, self._encode(line), ln=True)
         self.ln(5)
 
 def generate_pdf_report(results: dict) -> str:
@@ -100,10 +107,9 @@ def generate_pdf_report(results: dict) -> str:
     pdf.add_page()
 
     # Introdução
-    pdf.multi_cell(
-        0, 8,
-        'Este relatório apresenta uma estimativa sobre a probabilidade de o texto ter sido gerado por IA.'
-    )
+    intro = 'Este relatório apresenta uma estimativa sobre a probabilidade de o texto ter sido gerado por IA.'
+    pdf.set_font('Arial', '', 12)
+    pdf.multi_cell(0, 8, pdf._encode(intro))
     pdf.ln(5)
 
     # Resultados numéricos
@@ -113,15 +119,15 @@ def generate_pdf_report(results: dict) -> str:
     roberta_value = results['Roberta (IA)']
     pdf.ln(10)
     pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, 'O que é a "Avaliação Roberta (Confiabilidade IA)"?', ln=True)
-    pdf.set_font('Arial', '', 12)
-    pdf.multi_cell(
-        0, 8,
-        f"A 'Avaliação Roberta (Confiabilidade IA)' representa a pontuação gerada pelo modelo RoBERTa "
+    pdf.cell(0, 10, pdf._encode('O que é a "Avaliação Roberta (Confiabilidade IA)"?'), ln=True)
+    pdf.ln(2)
+
+    explanation = (
+        f"A 'Avaliação Roberta (Confiabilidade IA)' representa a pontuação gerada pelo modelo RoBerta "
         f"para indicar a probabilidade de que um texto tenha sido escrito por IA. No seu relatório, o "
-        f"modelo atribuiu **{roberta_value}**.\n\n"
-        "Como funciona o RoBERTa:\n"
-        "O RoBERTa (Robustly optimized BERT approach) é um modelo de NLP da Meta (Facebook AI), treinado "
+        f"modelo atribuiu {roberta_value}.\n\n"
+        "Como funciona o RoBerta:\n"
+        "O RoBerta (Robustly optimized BERT approach) é um modelo de NLP da Meta (Facebook AI), treinado "
         "com grandes volumes de texto para análises semânticas profundas.\n\n"
         "Critérios avaliados:\n"
         " - Coesão textual: IA costuma seguir padrões previsíveis.\n"
@@ -129,10 +135,12 @@ def generate_pdf_report(results: dict) -> str:
         " - Frases genéricas: construção sofisticada, porém superficial.\n"
         " - Padrões linguísticos: falta de nuances humanas (ironias, ambiguidade).\n\n"
         "Interpretação do valor:\n"
-        "0%–30%  → provavel texto humano\n"
+        "0%–30%  → provável texto humano\n"
         "30%–60% → área de incerteza\n"
         "60%–100%→ alta chance de texto IA"
     )
+    pdf.set_font('Arial', '', 12)
+    pdf.multi_cell(0, 8, pdf._encode(explanation))
 
     filename = "relatorio_IA.pdf"
     pdf.output(filename, 'F')
