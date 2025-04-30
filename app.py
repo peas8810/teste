@@ -137,9 +137,9 @@ def generate_pdf_report(results: dict) -> str:
         " - Frases genéricas: construção sofisticada, porém superficial.\n"
         " - Padrões linguísticos: falta de nuances humanas (ironias, ambiguidade).\n\n"
         "Interpretação do valor:\n"
-        "0% - 30%  → provável texto humano\n"
-        "30% - 60% → área de incerteza\n"
-        "60% - 100%→ alta chance de texto IA"
+        "0% - 30%    provável texto humano\n"
+        "30% - 60%   área de incerteza\n"
+        "60% - 100%  alta chance de texto IA"
     )
     pdf.set_font('Arial', '', 12)
     pdf.multi_cell(0, 8, pdf._encode(explanation))
