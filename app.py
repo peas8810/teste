@@ -115,63 +115,58 @@ def gerar_qr_code_pix(payload):
     buffer.seek(0)
     return Image.open(buffer)
 
-# --- Interface Streamlit com colunas ---
+# --- Interface Streamlit ---
 idioma_escolhido = st.selectbox("🌍 Escolha o idioma / Choose language / Elige el idioma", list(IDIOMAS.keys()))
 idioma = IDIOMAS[idioma_escolhido]
 t = lambda txt: traduzir_texto(txt, idioma) if idioma != 'pt' else txt
 
-col1, col2, col3 = st.columns([1, 2, 1])
+st.title(t("PlagIA - PEAS.Co"))
+nome = st.text_input(t("Nome completo"))
+email = st.text_input(t("E-mail"))
 
-with col1:
-    st.markdown("#### 📊 Estatísticas")
-    st.markdown("+10.000 relatórios gerados")
-    st.markdown("+50 países acessando")
-    st.markdown("💬 Feedback: \"Ferramenta essencial para revisores e autores.\"")
-    st.image(gerar_qr_code_pix("00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"), caption=t("Doação via Pix"), width=200)
+if st.button(t("Salvar Dados")):
+    if nome and email:
+        sucesso = salvar_email_google_sheets(nome, email, "N/A")
+        st.success(t("Dados salvos com sucesso!")) if sucesso else st.error(t("Erro ao salvar."))
+    else:
+        st.warning(t("Preencha todos os campos."))
 
-with col2:
-    st.title(t("PlagIA - PEAS.Co"))
-    nome = st.text_input(t("Nome completo"))
-    email = st.text_input(t("E-mail"))
+arquivo = st.file_uploader(t("Faça o upload de um artigo em PDF (sem nomes de autores ou informações da revista), garantindo uma avaliação imparcial baseada apenas no conteúdo textual"), type=["pdf"])
+if st.button(t("Processar PDF")):
+    if arquivo:
+        texto = extrair_texto_pdf(arquivo)
+        referencias = buscar_referencias_crossref(texto)
+        resultado = [(ref["titulo"], calcular_similaridade(texto, ref["titulo"] + ref["resumo"]), ref["link"]) for ref in referencias]
+        resultado.sort(key=lambda x: x[1], reverse=True)
 
-    if st.button(t("Salvar Dados")):
-        if nome and email:
-            sucesso = salvar_email_google_sheets(nome, email, "N/A")
-            st.success(t("Dados salvos com sucesso!")) if sucesso else st.error(t("Erro ao salvar."))
-        else:
-            st.warning(t("Preencha todos os campos."))
+        codigo = gerar_codigo_verificacao(texto)
+        salvar_email_google_sheets(nome, email, codigo)
 
-    arquivo = st.file_uploader(t("Envie o artigo em PDF para análise"), type=["pdf"])
-    if st.button(t("Processar PDF")):
-        if arquivo:
-            texto = extrair_texto_pdf(arquivo)
-            referencias = buscar_referencias_crossref(texto)
-            resultado = [(ref["titulo"], calcular_similaridade(texto, ref["titulo"] + ref["resumo"]), ref["link"]) for ref in referencias]
-            resultado.sort(key=lambda x: x[1], reverse=True)
+        pdf_file = gerar_relatorio_pdf(resultado, nome, email, codigo, idioma)
+        with open(pdf_file, "rb") as f:
+            st.download_button(t("📄 Baixar Relatório de Plágio"), f, "relatorio_plagio.pdf")
+    else:
+        st.error(t("Envie um arquivo primeiro."))
 
-            codigo = gerar_codigo_verificacao(texto)
-            salvar_email_google_sheets(nome, email, codigo)
+codigo_input = st.text_input(t("Digite o código de verificação"))
+if st.button(t("Verificar Código")):
+    if verificar_codigo_google_sheets(codigo_input):
+        st.success(t("Documento autêntico e original!"))
+    else:
+        st.error(t("Código inválido ou documento não autenticado."))
 
-            pdf_file = gerar_relatorio_pdf(resultado, nome, email, codigo, idioma)
-            with open(pdf_file, "rb") as f:
-                st.download_button(t("📄 Baixar Relatório de Plágio"), f, "relatorio_plagio.pdf")
-        else:
-            st.error(t("Envie um arquivo primeiro."))
+# --- Seção Pix ---
+payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
+st.markdown("---")
+st.markdown(f"""
+<h3 style='color: green;'>💚 {t('Ajude a manter este projeto gratuito')}</h3>
+<p>{t('Milhares de usuários foram beneficiados com a verificação de plágio gratuita.')}</p>
+<p>{t('Se esta ferramenta te ajudou, apoie com')} <strong>R$ 20,00</strong>.</p>
+<p><strong>{t('Chave Pix')}:</strong> <span style='color: blue;'>pesas8810@gmail.com</span></p>
+<p><strong>{t('Nome')}:</strong> PEAS TECHNOLOGIES</p>
+<p>🎁 {t('Doadores recebem selo simbólico no relatório PDF!')}</p>
+""", unsafe_allow_html=True)
 
-    codigo_input = st.text_input(t("Digite o código de verificação"))
-    if st.button(t("Verificar Código")):
-        if verificar_codigo_google_sheets(codigo_input):
-            st.success(t("Documento autêntico e original!"))
-        else:
-            st.error(t("Código inválido ou documento não autenticado."))
-
-with col3:
-    st.markdown("#### 🌟 Depoimentos")
-    st.markdown("\"Recebi um relatório em segundos, super completo.\"")
-    st.markdown("\"Uso o PlagIA em todas as submissões.\"")
-    st.markdown("\"Ótimo para revisar trabalhos antes da banca.\"")
-
-    payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
-    qr_img = gerar_qr_code_pix(payload)
-    st.image(qr_img, caption=t("📲 Escaneie o QR Code para doar via Pix (R$ 20,00)"), width=200)
-    st.success(t("🙏 Obrigado a todos que já contribuíram!"))
+qr_img = gerar_qr_code_pix(payload)
+st.image(qr_img, caption=t("📲 Escaneie o QR Code para doar via Pix (R$ 20,00)"), width=300)
+st.success(t("🙏 Obrigado a todos que já contribuíram!"))
