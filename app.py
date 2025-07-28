@@ -14,7 +14,7 @@ import qrcode
 
 # --- Configuracoes iniciais ---
 URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyTpbWDxWkNRh_ZIlHuAVwZaCC2ODqTmo0Un7ZDbgzrVQBmxlYYKuoYf6yDigAPHZiZ/exec"
-IDIOMAS = {"Portugu\u00eas": "pt", "English": "en"}
+IDIOMAS = {"Português": "pt", "English": "en", "Español": "es"}
 
 # --- Funcoes auxiliares ---
 def traduzir_texto(texto, idioma_destino="en"):
@@ -52,7 +52,7 @@ def buscar_referencias_crossref(texto):
         data = requests.get(url).json()
         refs = []
         for item in data.get("message", {}).get("items", []):
-            titulo = item.get("title", ["Sem t\u00edtulo"])[0]
+            titulo = item.get("title", ["Sem título"])[0]
             resumo = item.get("abstract", "")
             link = item.get("URL", "")
             refs.append({"titulo": titulo, "resumo": resumo, "link": link})
@@ -69,7 +69,7 @@ class PDF(FPDF):
 
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, self.traduzir("Relat\u00f3rio de Similaridade de Pl\u00e1gio - PlagIA - PEAS.Co"), ln=True, align='C')
+        self.cell(0, 10, self.traduzir("Relatório de Similaridade de Plágio - PlagIA - PEAS.Co"), ln=True, align='C')
 
     def chapter_title(self, title):
         self.set_font('Arial', 'B', 12)
@@ -90,16 +90,16 @@ def gerar_relatorio_pdf(refs, nome, email, codigo, idioma_destino):
     pdf.chapter_body(f"Nome: {nome}")
     pdf.chapter_body(f"E-mail: {email}")
     pdf.chapter_body(f"Data e Hora: {data_hora}")
-    pdf.chapter_body(f"C\u00f3digo de Verifica\u00e7\u00e3o: {codigo}")
+    pdf.chapter_body(f"Código de Verificação: {codigo}")
 
-    pdf.chapter_title("Top Refer\u00eancias encontradas:")
+    pdf.chapter_title("Top Referências encontradas:")
     if refs:
         total = sum(perc for _, perc, _ in refs[:5])
         for i, (ref, perc, link) in enumerate(refs[:5], 1):
             pdf.chapter_body(f"{i}. {ref} - {perc*100:.2f}%\n{link}")
-        pdf.chapter_body(f"Pl\u00e1gio m\u00e9dio: {(total/len(refs[:5]))*100:.2f}%")
+        pdf.chapter_body(f"Plágio médio: {(total/len(refs[:5]))*100:.2f}%")
     else:
-        pdf.chapter_body("Nenhuma refer\u00eancia encontrada.")
+        pdf.chapter_body("Nenhuma referência encontrada.")
 
     caminho = "/tmp/relatorio_plagio.pdf"
     pdf.output(caminho, 'F')
@@ -116,7 +116,7 @@ def gerar_qr_code_pix(payload):
     return Image.open(buffer)
 
 # --- Interface Streamlit ---
-idioma_escolhido = st.selectbox("🌍 Escolha o idioma / Choose language", list(IDIOMAS.keys()))
+idioma_escolhido = st.selectbox("🌍 Escolha o idioma / Choose language / Elige el idioma", list(IDIOMAS.keys()))
 idioma = IDIOMAS[idioma_escolhido]
 t = lambda txt: traduzir_texto(txt, idioma) if idioma != 'pt' else txt
 
@@ -131,7 +131,7 @@ if st.button(t("Salvar Dados")):
     else:
         st.warning(t("Preencha todos os campos."))
 
-arquivo = st.file_uploader(t("Envie o artigo em PDF para an\u00e1lise"), type=["pdf"])
+arquivo = st.file_uploader(t("Envie o artigo em PDF para análise"), type=["pdf"])
 if st.button(t("Processar PDF")):
     if arquivo:
         texto = extrair_texto_pdf(arquivo)
@@ -144,29 +144,29 @@ if st.button(t("Processar PDF")):
 
         pdf_file = gerar_relatorio_pdf(resultado, nome, email, codigo, idioma)
         with open(pdf_file, "rb") as f:
-            st.download_button(t("📄 Baixar Relat\u00f3rio de Pl\u00e1gio"), f, "relatorio_plagio.pdf")
+            st.download_button(t("📄 Baixar Relatório de Plágio"), f, "relatorio_plagio.pdf")
     else:
         st.error(t("Envie um arquivo primeiro."))
 
-codigo_input = st.text_input(t("Digite o c\u00f3digo de verifica\u00e7\u00e3o"))
-if st.button(t("Verificar C\u00f3digo")):
+codigo_input = st.text_input(t("Digite o código de verificação"))
+if st.button(t("Verificar Código")):
     if verificar_codigo_google_sheets(codigo_input):
-        st.success(t("Documento aut\u00eautico e original!"))
+        st.success(t("Documento autêntico e original!"))
     else:
-        st.error(t("C\u00f3digo inv\u00e1lido ou documento n\u00e3o autenticado."))
+        st.error(t("Código inválido ou documento não autenticado."))
 
-# --- Se\u00e7\u00e3o Pix ---
+# --- Seção Pix ---
 payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
 st.markdown("---")
 st.markdown(f"""
 <h3 style='color: green;'>💚 {t('Ajude a manter este projeto gratuito')}</h3>
-<p>{t('Milhares de usu\u00e1rios foram beneficiados com a verifica\u00e7\u00e3o de pl\u00e1gio gratuita.')}</p>
+<p>{t('Milhares de usuários foram beneficiados com a verificação de plágio gratuita.')}</p>
 <p>{t('Se esta ferramenta te ajudou, apoie com')} <strong>R$ 20,00</strong>.</p>
 <p><strong>{t('Chave Pix')}:</strong> <span style='color: blue;'>pesas8810@gmail.com</span></p>
 <p><strong>{t('Nome')}:</strong> PEAS TECHNOLOGIES</p>
-<p>🎁 {t('Doadores recebem selo simb\u00f3lico no relat\u00f3rio PDF!')}</p>
+<p>🎁 {t('Doadores recebem selo simbólico no relatório PDF!')}</p>
 """, unsafe_allow_html=True)
 
 qr_img = gerar_qr_code_pix(payload)
 st.image(qr_img, caption=t("📲 Escaneie o QR Code para doar via Pix (R$ 20,00)"), width=300)
-st.success(t("🙏 Obrigado a todos que j\u00e1 contribu\u00edram!"))
+st.success(t("🙏 Obrigado a todos que já contribuíram!"))
