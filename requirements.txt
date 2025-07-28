@@ -1,8 +1,7 @@
 streamlit
 requests
-numpy
-pandas
-pdfplumber
+PyPDF2
 fpdf
-transformers
-torch
+deep-translator
+Pillow
+qrcode
