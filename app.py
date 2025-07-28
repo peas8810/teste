@@ -131,7 +131,7 @@ if st.button(t("Salvar Dados")):
     else:
         st.warning(t("Preencha todos os campos."))
 
-arquivo = st.file_uploader(t("Envie o artigo em PDF para análise"), type=["pdf"])
+arquivo = st.file_uploader(t("Faça o upload de um artigo em PDF (sem nomes de autores ou informações da revista), garantindo uma avaliação imparcial baseada apenas no conteúdo textual"), type=["pdf"])
 if st.button(t("Processar PDF")):
     if arquivo:
         texto = extrair_texto_pdf(arquivo)
