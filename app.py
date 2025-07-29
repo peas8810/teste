@@ -1,5 +1,5 @@
 # =============================
-# 🍀 Sistema PlagIA - Visual Moderno com Limite Diário por Usuário
+# 🍀 Sistema PlagIA - Visual Moderno com Limite Diário por Usuário e PDF seguro
 # =============================
 
 import streamlit as st
@@ -81,22 +81,28 @@ def gerar_qr_code_pix(payload):
     return Image.open(buffer)
 
 # =============================
-# 📄 Classe PDF
+# 📄 Classe PDF com encode seguro
 # =============================
 class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, "Relatório Técnico de Similaridade Textual - PlagIA | PEAS.Co", ln=True, align='C')
+        self.cell(0, 10, self._encode_text("Relatório Técnico de Similaridade Textual - PlagIA | PEAS.Co"), ln=True, align='C')
 
     def chapter_title(self, title):
         self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, title, ln=True)
+        self.cell(0, 10, self._encode_text(title), ln=True)
         self.ln(3)
 
     def chapter_body(self, body):
         self.set_font('Arial', '', 10)
-        self.multi_cell(0, 8, body)
+        self.multi_cell(0, 8, self._encode_text(body))
         self.ln()
+
+    def _encode_text(self, text):
+        try:
+            return text.encode('latin-1', 'replace').decode('latin-1')
+        except UnicodeEncodeError:
+            return ''.join(char if ord(char) < 128 else '?' for char in text)
 
 def gerar_relatorio_pdf(referencias_com_similaridade, nome, email, codigo_verificacao):
     pdf = PDF()
@@ -149,8 +155,8 @@ if st.button("🍀 Processar PDF"):
         st.warning("⚠️ Por favor, envie um arquivo PDF.")
     else:
         consultas = contar_consultas_do_dia(email)
-        if consultas >= 2:
-            st.error("❌ Limite diário de 10 consultas atingido. Tente novamente amanhã ou entre em contato para acesso premium.")
+        if consultas >= 3:
+            st.error("❌ Limite diário de 3 consultas atingido. Tente novamente amanhã ou entre em contato para acesso premium.")
         else:
             texto_usuario = extrair_texto_pdf(arquivo_pdf)
             referencias = buscar_referencias_crossref(texto_usuario)
