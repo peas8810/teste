@@ -138,7 +138,7 @@ st.title("🍀 PlagIA - PEAS.Co")
 if "consultas" not in st.session_state:
     st.session_state["consultas"] = 0
 
-st.markdown(f"**Consultas restantes nesta sessão: {3 - st.session_state['consultas']}**")
+st.markdown(f"**Consultas restantes nesta sessão: {4 - st.session_state['consultas']}**")
 
 st.subheader("Registro Obrigatório do Usuário")
 nome = st.text_input("Nome completo")
