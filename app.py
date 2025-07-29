@@ -140,7 +140,7 @@ if "consultas" not in st.session_state:
 
 st.markdown(f"**Consultas restantes nesta sessão: {3 - st.session_state['consultas']}**")
 
-st.subheader("🍀 Registro Obrigatório do Usuário")
+st.subheader("Registro Obrigatório do Usuário")
 nome = st.text_input("Nome completo")
 email = st.text_input("E-mail")
 
@@ -151,8 +151,8 @@ if st.button("🍀 Processar PDF"):
         st.warning("⚠️ Por favor, preencha seu nome e e-mail antes de continuar.")
     elif not arquivo_pdf:
         st.warning("⚠️ Por favor, envie um arquivo PDF.")
-    elif st.session_state["consultas"] >= 3:
-        st.error("❌ Limite de 3 consultas nesta sessão atingido. Recarregue a página para reiniciar ou adquira acesso premium.")
+    elif st.session_state["consultas"] >= 4:
+        st.error("❌ Limite de 4 consultas nesta sessão atingido. Recarregue a página para reiniciar ou adquira acesso premium.")
     else:
         texto_usuario = extrair_texto_pdf(arquivo_pdf)
         referencias = buscar_referencias_crossref(texto_usuario)
