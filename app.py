@@ -51,6 +51,7 @@ def limpar_texto(texto_bruto):
     linhas = texto_bruto.splitlines()
     linhas_filtradas = []
     contagem = Counter(linhas)
+    capturar = False
     for linha in linhas:
         linha = linha.strip()
         if not linha:
@@ -63,7 +64,18 @@ def limpar_texto(texto_bruto):
             continue
         if "doi" in linha.lower() and len(linha) < 50:
             continue
-        linhas_filtradas.append(linha)
+
+        # Ativar captura somente após o início do corpo (após "Resumo")
+        if re.search(r"\bResumo\b", linha, re.IGNORECASE):
+            capturar = True
+
+        if capturar:
+            linhas_filtradas.append(linha)
+
+        # Opcional: interromper ao detectar "Referências" ou similar
+        if re.search(r"\bRefer[eê]ncias\b|\bBibliografia\b", linha, re.IGNORECASE):
+            break
+
     return " ".join(linhas_filtradas)
 
 def calcular_similaridade(texto1, texto2):
