@@ -5,3 +5,4 @@ fpdf
 deep-translator
 Pillow
 qrcode
+pdfplumber
