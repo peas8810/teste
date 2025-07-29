@@ -135,7 +135,7 @@ email = st.text_input("E-mail")
 
 arquivo_pdf = st.file_uploader("📄 Envie o artigo em PDF", type=["pdf"])
 
-if st.button("🍀 Processar PDF"):
+if st.button("🍀 Processar PDF 🍀"):
     if not nome or not email:
         st.warning("⚠️ Por favor, preencha seu nome e e-mail antes de continuar.")
     elif not arquivo_pdf:
@@ -157,7 +157,7 @@ if st.button("🍀 Processar PDF"):
             st.download_button("📄 Baixar Relatório de Plágio", f, "relatorio_plagio.pdf")
 
 st.markdown("---")
-st.subheader("🍀 Verificação de Autenticidade")
+st.subheader("Verificação de Autenticidade")
 codigo_input = st.text_input("Digite o código de verificação")
 if st.button("🔍 Verificar Código"):
     if verificar_codigo_google_sheets(codigo_input):
@@ -170,7 +170,7 @@ st.markdown("---")
 payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
 
 st.markdown(f"""
-<h3 style='color: green;'>🍀 Apoie Este Projeto com um Pix!</h3>
+<h3 style='color: green;'>🍀 Apoie Este Projeto com um Pix! 🍀</h3>
 <p>Com sua doação de <strong>R$ 20,00</strong>, você ajuda a manter o projeto gratuito e acessível.</p>
 <p><strong>Chave Pix:</strong> <span style='color: blue;'>pesas8810@gmail.com</span></p>
 <p><strong>Nome do recebedor:</strong> PEAS TECHNOLOGIES</p>
