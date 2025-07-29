@@ -1,5 +1,5 @@
 # =============================
-# 💚 Sistema PlagIA - Visual Moderno e Funcional
+# 🍀 Sistema PlagIA - Visual Moderno e Funcional
 # =============================
 
 import streamlit as st
@@ -127,15 +127,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("💚 PlagIA - PEAS.Co")
+st.title("🍀 PlagIA - PEAS.Co")
 
-st.subheader("💚 Registro Obrigatório do Usuário")
+st.subheader("🍀 Registro Obrigatório do Usuário")
 nome = st.text_input("Nome completo")
 email = st.text_input("E-mail")
 
 arquivo_pdf = st.file_uploader("📄 Envie o artigo em PDF", type=["pdf"])
 
-if st.button("💚 Processar PDF"):
+if st.button("🍀 Processar PDF"):
     if not nome or not email:
         st.warning("⚠️ Por favor, preencha seu nome e e-mail antes de continuar.")
     elif not arquivo_pdf:
@@ -151,13 +151,13 @@ if st.button("💚 Processar PDF"):
         referencias_sim.sort(key=lambda x: x[1], reverse=True)
         codigo = gerar_codigo_verificacao(texto_usuario)
         salvar_email_google_sheets(nome, email, codigo)
-        st.success(f"💚 Código de verificação gerado: **{codigo}**")
+        st.success(f"🍀 Código de verificação gerado: **{codigo}**")
         pdf_path = gerar_relatorio_pdf(referencias_sim, nome, email, codigo)
         with open(pdf_path, "rb") as f:
             st.download_button("📄 Baixar Relatório de Plágio", f, "relatorio_plagio.pdf")
 
 st.markdown("---")
-st.subheader("💚 Verificação de Autenticidade")
+st.subheader("🍀 Verificação de Autenticidade")
 codigo_input = st.text_input("Digite o código de verificação")
 if st.button("🔍 Verificar Código"):
     if verificar_codigo_google_sheets(codigo_input):
@@ -170,7 +170,7 @@ st.markdown("---")
 payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
 
 st.markdown(f"""
-<h3 style='color: green;'>💚 Apoie Este Projeto com um Pix!</h3>
+<h3 style='color: green;'>🍀 Apoie Este Projeto com um Pix!</h3>
 <p>Com sua doação de <strong>R$ 20,00</strong>, você ajuda a manter o projeto gratuito e acessível.</p>
 <p><strong>Chave Pix:</strong> <span style='color: blue;'>pesas8810@gmail.com</span></p>
 <p><strong>Nome do recebedor:</strong> PEAS TECHNOLOGIES</p>
@@ -178,4 +178,4 @@ st.markdown(f"""
 
 qr_img = gerar_qr_code_pix(payload)
 st.image(qr_img, caption="📲 Escaneie o QR Code para doar via Pix (R$ 20,00)", width=300)
-st.success("💚 Obrigado pela sua contribuição! Juntos mantemos este projeto gratuito.")
+st.success("🍀 Obrigado pela sua contribuição! Juntos mantemos este projeto gratuito.")
