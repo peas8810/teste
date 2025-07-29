@@ -1,5 +1,5 @@
 # =============================
-# 🍀 Sistema PlagIA - Visual Moderno com Limite Diário por Usuário e PDF seguro
+# 🍀 Sistema PlagIA - Limite Local por Sessão com PDF Seguro
 # =============================
 
 import streamlit as st
@@ -27,13 +27,6 @@ def salvar_email_google_sheets(nome, email, codigo_verificacao):
         return response.text.strip() == "Sucesso"
     except:
         return False
-
-def contar_consultas_do_dia(email):
-    try:
-        response = requests.get(f"{URL_GOOGLE_SHEETS}?email={email}&data={str(date.today())}&contar=true")
-        return int(response.text.strip())
-    except:
-        return 0
 
 def verificar_codigo_google_sheets(codigo_digitado):
     try:
@@ -142,6 +135,11 @@ st.markdown("""
 
 st.title("🍀 PlagIA - PEAS.Co")
 
+if "consultas" not in st.session_state:
+    st.session_state["consultas"] = 0
+
+st.markdown(f"**Consultas restantes nesta sessão: {3 - st.session_state['consultas']}**")
+
 st.subheader("🍀 Registro Obrigatório do Usuário")
 nome = st.text_input("Nome completo")
 email = st.text_input("E-mail")
@@ -153,25 +151,24 @@ if st.button("🍀 Processar PDF"):
         st.warning("⚠️ Por favor, preencha seu nome e e-mail antes de continuar.")
     elif not arquivo_pdf:
         st.warning("⚠️ Por favor, envie um arquivo PDF.")
+    elif st.session_state["consultas"] >= 3:
+        st.error("❌ Limite de 3 consultas nesta sessão atingido. Recarregue a página para reiniciar ou adquira acesso premium.")
     else:
-        consultas = contar_consultas_do_dia(email)
-        if consultas >= 3:
-            st.error("❌ Limite diário de 3 consultas atingido. Tente novamente amanhã ou entre em contato para acesso premium.")
-        else:
-            texto_usuario = extrair_texto_pdf(arquivo_pdf)
-            referencias = buscar_referencias_crossref(texto_usuario)
-            referencias_sim = []
-            for ref in referencias:
-                base = ref["titulo"] + " " + ref["resumo"]
-                sim = calcular_similaridade(texto_usuario, base)
-                referencias_sim.append((ref["titulo"], sim, ref["link"]))
-            referencias_sim.sort(key=lambda x: x[1], reverse=True)
-            codigo = gerar_codigo_verificacao(texto_usuario)
-            salvar_email_google_sheets(nome, email, codigo)
-            st.success(f"🍀 Código de verificação gerado: **{codigo}**")
-            pdf_path = gerar_relatorio_pdf(referencias_sim, nome, email, codigo)
-            with open(pdf_path, "rb") as f:
-                st.download_button("📄 Baixar Relatório de Plágio", f, "relatorio_plagio.pdf")
+        texto_usuario = extrair_texto_pdf(arquivo_pdf)
+        referencias = buscar_referencias_crossref(texto_usuario)
+        referencias_sim = []
+        for ref in referencias:
+            base = ref["titulo"] + " " + ref["resumo"]
+            sim = calcular_similaridade(texto_usuario, base)
+            referencias_sim.append((ref["titulo"], sim, ref["link"]))
+        referencias_sim.sort(key=lambda x: x[1], reverse=True)
+        codigo = gerar_codigo_verificacao(texto_usuario)
+        salvar_email_google_sheets(nome, email, codigo)
+        st.success(f"🍀 Código de verificação gerado: **{codigo}**")
+        pdf_path = gerar_relatorio_pdf(referencias_sim, nome, email, codigo)
+        with open(pdf_path, "rb") as f:
+            st.download_button("📄 Baixar Relatório de Plágio", f, "relatorio_plagio.pdf")
+        st.session_state["consultas"] += 1
 
 st.markdown("---")
 st.subheader("🍀 Verificação de Autenticidade")
