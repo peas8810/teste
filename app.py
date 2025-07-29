@@ -205,7 +205,7 @@ if st.button("🍀 Processar PDF"):
         st.session_state["consultas"] += 1
 
 st.markdown("---")
-st.subheader("🍀 Verificação de Autenticidade")
+st.subheader("Verificação de Autenticidade")
 codigo_input = st.text_input("Digite o código de verificação")
 if st.button("🔍 Verificar Código"):
     if verificar_codigo_google_sheets(codigo_input):
