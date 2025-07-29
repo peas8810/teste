@@ -1,5 +1,5 @@
 # =============================
-# 🍀 Sistema PlagIA - Visual Moderno e Funcional
+# 🍀 Sistema PlagIA - Visual Moderno com Limite Diário por Usuário
 # =============================
 
 import streamlit as st
@@ -9,7 +9,7 @@ import difflib
 from fpdf import FPDF
 from io import BytesIO
 import hashlib
-from datetime import datetime
+from datetime import datetime, date
 from PIL import Image
 import qrcode
 
@@ -20,13 +20,20 @@ URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyTpbWDxWkNRh_ZIlHu
 # 📋 Funções Auxiliares
 # =============================
 def salvar_email_google_sheets(nome, email, codigo_verificacao):
-    dados = {"nome": nome, "email": email, "codigo": codigo_verificacao}
+    dados = {"nome": nome, "email": email, "codigo": codigo_verificacao, "data": str(date.today())}
     try:
         headers = {'Content-Type': 'application/json'}
         response = requests.post(URL_GOOGLE_SHEETS, json=dados, headers=headers)
         return response.text.strip() == "Sucesso"
     except:
         return False
+
+def contar_consultas_do_dia(email):
+    try:
+        response = requests.get(f"{URL_GOOGLE_SHEETS}?email={email}&data={str(date.today())}&contar=true")
+        return int(response.text.strip())
+    except:
+        return 0
 
 def verificar_codigo_google_sheets(codigo_digitado):
     try:
@@ -127,37 +134,41 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🍀 PlagIA - PEAS.Co 🍀")
+st.title("🍀 PlagIA - PEAS.Co")
 
-st.subheader("Registro Obrigatório do Usuário")
+st.subheader("🍀 Registro Obrigatório do Usuário")
 nome = st.text_input("Nome completo")
 email = st.text_input("E-mail")
 
 arquivo_pdf = st.file_uploader("📄 Envie o artigo em PDF", type=["pdf"])
 
-if st.button("🍀 Processar PDF 🍀"):
+if st.button("🍀 Processar PDF"):
     if not nome or not email:
         st.warning("⚠️ Por favor, preencha seu nome e e-mail antes de continuar.")
     elif not arquivo_pdf:
         st.warning("⚠️ Por favor, envie um arquivo PDF.")
     else:
-        texto_usuario = extrair_texto_pdf(arquivo_pdf)
-        referencias = buscar_referencias_crossref(texto_usuario)
-        referencias_sim = []
-        for ref in referencias:
-            base = ref["titulo"] + " " + ref["resumo"]
-            sim = calcular_similaridade(texto_usuario, base)
-            referencias_sim.append((ref["titulo"], sim, ref["link"]))
-        referencias_sim.sort(key=lambda x: x[1], reverse=True)
-        codigo = gerar_codigo_verificacao(texto_usuario)
-        salvar_email_google_sheets(nome, email, codigo)
-        st.success(f"🍀 Código de verificação gerado: **{codigo}**")
-        pdf_path = gerar_relatorio_pdf(referencias_sim, nome, email, codigo)
-        with open(pdf_path, "rb") as f:
-            st.download_button("📄 Baixar Relatório de Plágio", f, "relatorio_plagio.pdf")
+        consultas = contar_consultas_do_dia(email)
+        if consultas >= 2:
+            st.error("❌ Limite diário de 10 consultas atingido. Tente novamente amanhã ou entre em contato para acesso premium.")
+        else:
+            texto_usuario = extrair_texto_pdf(arquivo_pdf)
+            referencias = buscar_referencias_crossref(texto_usuario)
+            referencias_sim = []
+            for ref in referencias:
+                base = ref["titulo"] + " " + ref["resumo"]
+                sim = calcular_similaridade(texto_usuario, base)
+                referencias_sim.append((ref["titulo"], sim, ref["link"]))
+            referencias_sim.sort(key=lambda x: x[1], reverse=True)
+            codigo = gerar_codigo_verificacao(texto_usuario)
+            salvar_email_google_sheets(nome, email, codigo)
+            st.success(f"🍀 Código de verificação gerado: **{codigo}**")
+            pdf_path = gerar_relatorio_pdf(referencias_sim, nome, email, codigo)
+            with open(pdf_path, "rb") as f:
+                st.download_button("📄 Baixar Relatório de Plágio", f, "relatorio_plagio.pdf")
 
 st.markdown("---")
-st.subheader("Verificação de Autenticidade")
+st.subheader("🍀 Verificação de Autenticidade")
 codigo_input = st.text_input("Digite o código de verificação")
 if st.button("🔍 Verificar Código"):
     if verificar_codigo_google_sheets(codigo_input):
@@ -170,7 +181,7 @@ st.markdown("---")
 payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
 
 st.markdown(f"""
-<h3 style='color: green;'>🍀 Apoie Este Projeto com um Pix! 🍀</h3>
+<h3 style='color: green;'>🍀 Apoie Este Projeto com um Pix!</h3>
 <p>Com sua doação de <strong>R$ 20,00</strong>, você ajuda a manter o projeto gratuito e acessível.</p>
 <p><strong>Chave Pix:</strong> <span style='color: blue;'>pesas8810@gmail.com</span></p>
 <p><strong>Nome do recebedor:</strong> PEAS TECHNOLOGIES</p>
