@@ -127,9 +127,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🍀 PlagIA - PEAS.Co")
+st.title("🍀 PlagIA - PEAS.Co 🍀")
 
-st.subheader("🍀 Registro Obrigatório do Usuário")
+st.subheader("Registro Obrigatório do Usuário")
 nome = st.text_input("Nome completo")
 email = st.text_input("E-mail")
 
