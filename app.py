@@ -1,5 +1,5 @@
 # =============================
-# 🍀 Sistema PlagIA - Limite Local por Sessão com PDF Seguro
+# 🍀 Sistema PlagIA - Limite Local com Filtro de Texto Inteligente
 # =============================
 
 import streamlit as st
@@ -12,6 +12,8 @@ import hashlib
 from datetime import datetime, date
 from PIL import Image
 import qrcode
+import re
+from collections import Counter
 
 # 🔗 URL da API gerada no Google Sheets
 URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyTpbWDxWkNRh_ZIlHuAVwZaCC2ODqTmo0Un7ZDbgzrVQBmxlYYKuoYf6yDigAPHZiZ/exec"
@@ -44,6 +46,25 @@ def extrair_texto_pdf(arquivo_pdf):
     for pagina in leitor_pdf.pages:
         texto += pagina.extract_text() or ""
     return texto.strip()
+
+def limpar_texto(texto_bruto):
+    linhas = texto_bruto.splitlines()
+    linhas_filtradas = []
+    contagem = Counter(linhas)
+    for linha in linhas:
+        linha = linha.strip()
+        if not linha:
+            continue
+        if len(linha) < 5:
+            continue
+        if contagem[linha] > 3:
+            continue
+        if re.match(r"^Página?\s*\d+$", linha, re.IGNORECASE):
+            continue
+        if "doi" in linha.lower() and len(linha) < 50:
+            continue
+        linhas_filtradas.append(linha)
+    return " ".join(linhas_filtradas)
 
 def calcular_similaridade(texto1, texto2):
     return difflib.SequenceMatcher(None, texto1, texto2).ratio()
@@ -154,7 +175,8 @@ if st.button("🍀 Processar PDF"):
     elif st.session_state["consultas"] >= 4:
         st.error("❌ Limite de 4 consultas nesta sessão atingido. Recarregue a página para reiniciar ou adquira acesso premium.")
     else:
-        texto_usuario = extrair_texto_pdf(arquivo_pdf)
+        texto_extraido = extrair_texto_pdf(arquivo_pdf)
+        texto_usuario = limpar_texto(texto_extraido)
         referencias = buscar_referencias_crossref(texto_usuario)
         referencias_sim = []
         for ref in referencias:
