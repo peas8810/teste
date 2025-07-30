@@ -1,8 +1,10 @@
 streamlit
 requests
 PyPDF2
-fpdf
-deep-translator
-Pillow
-qrcode
 pdfplumber
+fpdf
+pillow
+qrcode
+transformers
+torch
+numpy
