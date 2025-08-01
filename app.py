@@ -1,67 +1,52 @@
-"""
-🍀 TotalIA - Sistema Completo Final
-Versão Professional com Todas as Melhorias Integradas
-PEAS.Co - 2024
-
-Funcionalidades:
-- Algoritmo ensemble avançado com 6 detectores
-- Sistema de confiança calibrado
-- Design moderno e responsivo
-- Limite de uso por sessão (4 análises)
-- Relatórios profissionais em múltiplos formatos
-- Visualizações interativas
-- Análise de qualidade do texto
-- Histórico da sessão
-- Dashboard de estatísticas
-"""
+# =============================
+# 🍀 Sistema PlagIA - Versão Melhorada com Design Moderno
+# Inspirado no TotalIA - PEAS.Co 2024
+# =============================
 
 import streamlit as st
 import requests
 import PyPDF2
 import difflib
-import re
-import numpy as np
 from fpdf import FPDF
 from io import BytesIO
 import hashlib
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from PIL import Image
 import qrcode
-import pdfplumber
-import torch
-from transformers import RobertaTokenizer, RobertaForSequenceClassification
-import json
-import time
-from collections import Counter, defaultdict
-from typing import Dict, List, Tuple, Optional
-import logging
+import re
+from collections import Counter
+import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-import base64
+import time
+import json
+from typing import Dict, List, Tuple, Optional
 
 # Configuração da página
 st.set_page_config(
-    page_title="TotalIA Professional - Detecção Avançada de IA",
+    page_title="PlagIA Professional - Detecção Avançada de Plágio",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# 🔗 URL da API gerada no Google Sheets
+URL_GOOGLE_SHEETS = "https://script.google.com/macros/s/AKfycbyTpbWDxWkNRh_ZIlHuAVwZaCC2ODqTmo0Un7ZDbgzrVQBmxlYYKuoYf6yDigAPHZiZ/exec"
 
 # Configurações globais
 CONFIG = {
     'MAX_CONSULTAS_SESSAO': 4,
     'MIN_TEXT_LENGTH': 100,
     'MAX_TEXT_LENGTH': 50000,
-    'GOOGLE_SHEETS_URL': "https://script.google.com/macros/s/AKfycbyTpbWDxWkNRh_ZIlHuAVwZaCC2ODqTmo0Un7ZDbgzrVQBmxlYYKuoYf6yDigAPHZiZ/exec"
 }
 
 # =============================
 # CSS Avançado e Design Moderno
 # =============================
 
-def load_complete_css():
-    """CSS completo com todas as melhorias"""
+def load_modern_css():
+    """CSS moderno inspirado no TotalIA"""
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -193,9 +178,9 @@ def load_complete_css():
         animation: neonFlicker 2s infinite alternate;
     }
     
-    .neon-high { color: #00ff41; }
+    .neon-high { color: #ff0040; }
     .neon-medium { color: #ffaa00; }
-    .neon-low { color: #ff0040; }
+    .neon-low { color: #00ff41; }
     
     @keyframes neonFlicker {
         0%, 100% { opacity: 1; }
@@ -454,1086 +439,665 @@ def load_complete_css():
     """, unsafe_allow_html=True)
 
 # =============================
-# Classes Principais Integradas
+# Funções Auxiliares Melhoradas
 # =============================
 
-class AdvancedTextAnalyzer:
-    """Analisador de texto com múltiplas métricas avançadas"""
-    
-    def __init__(self):
-        self.tokenizer, self.model = self._load_roberta_model()
-    
-    @st.cache_resource
-    def _load_roberta_model(_self):
-        """Carrega modelo RoBERTa com cache"""
-        try:
-            tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
-            model = RobertaForSequenceClassification.from_pretrained('roberta-base')
-            return tokenizer, model
-        except Exception as e:
-            st.error(f"Erro ao carregar modelo: {e}")
-            return None, None
-    
-    def analyze_text_comprehensive(self, text: str) -> Dict:
-        """Análise completa do texto com múltiplas métricas"""
-        
-        # Validação básica
-        if not self._validate_text(text):
-            return self._get_error_result("Texto inválido ou muito curto")
-        
-        # Pré-processamento
-        clean_text = self._preprocess_text(text)
-        
-        # Análise com múltiplas métricas
-        metrics = {
-            'word_entropy': self._calculate_word_entropy(clean_text),
-            'lexical_diversity': self._calculate_lexical_diversity(clean_text),
-            'repetition_score': self._detect_repetition_patterns(clean_text),
-            'ai_patterns': self._detect_ai_patterns(clean_text),
-            'syntactic_complexity': self._analyze_syntactic_complexity(clean_text),
-            'roberta_score': self._analyze_with_roberta(clean_text)
-        }
-        
-        # Análise de qualidade do texto
-        quality_analysis = self._analyze_text_quality(text)
-        
-        # Cálculo do score final usando ensemble
-        final_score = self._calculate_ensemble_score(metrics)
-        
-        # Cálculo da confiança
-        confidence = self._calculate_confidence(metrics, quality_analysis)
-        
-        # Interpretação dos resultados
-        interpretation = self._interpret_results(final_score, confidence)
-        
-        return {
-            'ai_probability': final_score,
-            'confidence': confidence,
-            'confidence_level': self._classify_confidence(confidence),
-            'metrics': metrics,
-            'quality_analysis': quality_analysis,
-            'interpretation': interpretation,
-            'recommendations': self._generate_recommendations(final_score, confidence, quality_analysis)
-        }
-    
-    def _validate_text(self, text: str) -> bool:
-        """Valida se o texto é adequado para análise"""
-        if not text or len(text.strip()) < CONFIG['MIN_TEXT_LENGTH']:
-            return False
-        if len(text) > CONFIG['MAX_TEXT_LENGTH']:
-            return False
-        return True
-    
-    def _preprocess_text(self, text: str) -> str:
-        """Pré-processa texto preservando características importantes"""
-        text = re.sub(r'\s+', ' ', text)
-        return text.strip()
-    
-    def _calculate_word_entropy(self, text: str) -> float:
-        """Calcula entropia baseada em palavras"""
-        words = text.lower().split()
-        if len(words) < 10:
-            return 0.0
-        
-        word_freq = Counter(words)
-        total_words = len(words)
-        
-        entropy = -sum((freq/total_words) * np.log2(freq/total_words) 
-                      for freq in word_freq.values())
-        return entropy
-    
-    def _calculate_lexical_diversity(self, text: str) -> float:
-        """Calcula diversidade lexical (Type-Token Ratio)"""
-        words = text.lower().split()
-        if len(words) < 10:
-            return 0.0
-        
-        unique_words = len(set(words))
-        total_words = len(words)
-        return unique_words / total_words
-    
-    def _detect_repetition_patterns(self, text: str) -> float:
-        """Detecta padrões repetitivos"""
-        sentences = re.split(r'[.!?]+', text)
-        if len(sentences) < 3:
-            return 0.0
-        
-        similarity_scores = []
-        for i in range(len(sentences)-1):
-            for j in range(i+1, len(sentences)):
-                s1_words = set(sentences[i].lower().split())
-                s2_words = set(sentences[j].lower().split())
-                if len(s1_words) > 0 and len(s2_words) > 0:
-                    similarity = len(s1_words & s2_words) / len(s1_words | s2_words)
-                    similarity_scores.append(similarity)
-        
-        return np.mean(similarity_scores) if similarity_scores else 0.0
-    
-    def _detect_ai_patterns(self, text: str) -> float:
-        """Detecta padrões linguísticos típicos de IA"""
-        ai_indicators = [
-            r'\b(além disso|portanto|consequentemente|dessa forma|por outro lado)\b',
-            r'\b(é importante notar|vale ressaltar|cabe destacar)\b',
-            r'\b(em resumo|em conclusão|para concluir)\b',
-            r'\b(de acordo com|segundo|conforme)\b'
-        ]
-        
-        text_lower = text.lower()
-        total_indicators = 0
-        words = len(text.split())
-        
-        for pattern in ai_indicators:
-            matches = len(re.findall(pattern, text_lower))
-            total_indicators += matches
-        
-        return (total_indicators / words) * 1000 if words > 0 else 0.0
-    
-    def _analyze_syntactic_complexity(self, text: str) -> float:
-        """Analisa complexidade sintática"""
-        sentences = re.split(r'[.!?]+', text)
-        if not sentences:
-            return 0.0
-        
-        complexities = []
-        for sentence in sentences:
-            words = sentence.split()
-            if len(words) > 0:
-                avg_word_length = np.mean([len(word) for word in words])
-                sentence_length = len(words)
-                complexity = (avg_word_length * sentence_length) / 100
-                complexities.append(complexity)
-        
-        return np.mean(complexities) if complexities else 0.0
-    
-    def _analyze_with_roberta(self, text: str) -> float:
-        """Análise com modelo RoBERTa"""
-        if not self.tokenizer or not self.model:
-            return 50.0  # Valor neutro se modelo não disponível
-        
-        try:
-            inputs = self.tokenizer(text, return_tensors="pt", truncation=True, 
-                                  padding=True, max_length=512)
-            with torch.no_grad():
-                outputs = self.model(**inputs)
-                prob = torch.softmax(outputs.logits, dim=1)[0, 1].item()
-            return prob * 100
-        except Exception:
-            return 50.0
-    
-    def _analyze_text_quality(self, text: str) -> Dict:
-        """Analisa qualidade do texto"""
-        words = text.split()
-        sentences = re.split(r'[.!?]+', text)
-        
-        quality_factors = {
-            'length_adequacy': self._assess_length_quality(len(words)),
-            'structure_clarity': self._assess_structure_quality(sentences),
-            'language_consistency': self._assess_language_quality(words),
-            'content_coherence': self._assess_coherence_quality(text)
-        }
-        
-        overall_quality = np.mean(list(quality_factors.values()))
-        
-        return {
-            'overall_score': overall_quality,
-            'factors': quality_factors,
-            'quality_level': self._classify_quality(overall_quality)
-        }
-    
-    def _assess_length_quality(self, word_count: int) -> float:
-        """Avalia qualidade baseada no comprimento"""
-        if word_count < 50:
-            return 0.3
-        elif word_count < 100:
-            return 0.6
-        elif word_count < 500:
-            return 0.9
-        elif word_count < 1000:
-            return 1.0
-        else:
-            return 0.8
-    
-    def _assess_structure_quality(self, sentences: List[str]) -> float:
-        """Avalia qualidade da estrutura"""
-        if not sentences:
-            return 0.0
-        
-        sentence_lengths = [len(s.split()) for s in sentences if s.strip()]
-        if not sentence_lengths:
-            return 0.0
-        
-        avg_length = np.mean(sentence_lengths)
-        variety = np.std(sentence_lengths) if len(sentence_lengths) > 1 else 0
-        
-        score = 0.0
-        if 8 <= avg_length <= 25:
-            score += 0.5
-        if variety > 2:
-            score += 0.5
-        
-        return min(score, 1.0)
-    
-    def _assess_language_quality(self, words: List[str]) -> float:
-        """Avalia qualidade da linguagem"""
-        if not words:
-            return 0.0
-        
-        word_freq = Counter(words)
-        most_common_freq = word_freq.most_common(1)[0][1] if word_freq else 0
-        repetition_ratio = most_common_freq / len(words)
-        unique_ratio = len(set(words)) / len(words)
-        
-        score = 0.0
-        if repetition_ratio < 0.1:
-            score += 0.5
-        if unique_ratio > 0.6:
-            score += 0.5
-        
-        return score
-    
-    def _assess_coherence_quality(self, text: str) -> float:
-        """Avalia coerência do conteúdo"""
-        connectives = [
-            r'\b(além disso|portanto|consequentemente|dessa forma)\b',
-            r'\b(entretanto|contudo|todavia|no entanto)\b',
-            r'\b(primeiramente|em seguida|finalmente|por fim)\b'
-        ]
-        
-        connective_count = 0
-        for pattern in connectives:
-            connective_count += len(re.findall(pattern, text.lower()))
-        
-        sentences = re.split(r'[.!?]+', text)
-        if not sentences:
-            return 0.5
-        
-        connective_density = connective_count / len(sentences)
-        
-        if 0.1 <= connective_density <= 0.3:
-            return 0.8
-        elif 0.05 <= connective_density <= 0.5:
-            return 0.6
-        else:
-            return 0.4
-    
-    def _calculate_ensemble_score(self, metrics: Dict) -> float:
-        """Calcula score final usando ensemble"""
-        weights = {
-            'word_entropy': 0.20,
-            'lexical_diversity': 0.15,
-            'repetition_score': 0.20,
-            'ai_patterns': 0.15,
-            'syntactic_complexity': 0.10,
-            'roberta_score': 0.20
-        }
-        
-        # Normalização das métricas
-        normalized_metrics = {
-            'word_entropy': min(metrics['word_entropy'] / 10, 1.0),
-            'lexical_diversity': 1.0 - metrics['lexical_diversity'],
-            'repetition_score': metrics['repetition_score'],
-            'ai_patterns': min(metrics['ai_patterns'] / 10, 1.0),
-            'syntactic_complexity': min(metrics['syntactic_complexity'] / 5, 1.0),
-            'roberta_score': metrics['roberta_score'] / 100
-        }
-        
-        score = sum(normalized_metrics[key] * weights[key] for key in weights.keys())
-        return min(score * 100, 100.0)
-    
-    def _calculate_confidence(self, metrics: Dict, quality: Dict) -> float:
-        """Calcula confiança da análise"""
-        # Confiança baseada na consistência das métricas
-        metric_values = [
-            metrics['word_entropy'] / 10,
-            1.0 - metrics['lexical_diversity'],
-            metrics['repetition_score'],
-            metrics['ai_patterns'] / 10,
-            metrics['syntactic_complexity'] / 5,
-            metrics['roberta_score'] / 100
-        ]
-        
-        std_dev = np.std(metric_values)
-        consistency_score = max(0, 1 - (std_dev * 2))
-        
-        # Ajuste baseado na qualidade do texto
-        quality_multiplier = 0.7 + (quality['overall_score'] * 0.3)
-        
-        confidence = consistency_score * quality_multiplier * 100
-        return min(confidence, 95.0)
-    
-    def _classify_confidence(self, confidence: float) -> str:
-        """Classifica nível de confiança"""
-        if confidence >= 80:
-            return "Muito Alta"
-        elif confidence >= 65:
-            return "Alta"
-        elif confidence >= 50:
-            return "Moderada"
-        elif confidence >= 35:
-            return "Baixa"
-        else:
-            return "Muito Baixa"
-    
-    def _classify_quality(self, quality: float) -> str:
-        """Classifica qualidade do texto"""
-        if quality >= 0.8:
-            return "Excelente"
-        elif quality >= 0.6:
-            return "Boa"
-        elif quality >= 0.4:
-            return "Regular"
-        else:
-            return "Baixa"
-    
-    def _interpret_results(self, score: float, confidence: float) -> str:
-        """Interpreta os resultados"""
-        if confidence < 50:
-            return "Análise inconclusiva - texto pode ser ambíguo ou de baixa qualidade"
-        elif score < 30:
-            return "Baixa probabilidade de IA - muito provavelmente texto humano"
-        elif score < 60:
-            return "Probabilidade moderada de IA - análise adicional recomendada"
-        else:
-            return "Alta probabilidade de IA - muito provável que seja gerado por IA"
-    
-    def _generate_recommendations(self, score: float, confidence: float, quality: Dict) -> List[str]:
-        """Gera recomendações baseadas na análise"""
-        recommendations = []
-        
-        if confidence < 60:
-            recommendations.append("⚠️ Confiança baixa - considere análise de texto mais longo ou de melhor qualidade")
-        
-        if quality['overall_score'] < 0.5:
-            recommendations.append("📝 Qualidade do texto baixa - pode afetar precisão da análise")
-        
-        if quality['factors']['length_adequacy'] < 0.5:
-            recommendations.append("📏 Texto muito curto - recomenda-se análise de texto mais extenso")
-        
-        if 40 <= score <= 60:
-            recommendations.append("🔍 Resultado na zona de incerteza - considere análise manual adicional")
-        
-        if confidence >= 80:
-            recommendations.append("✅ Alta confiança - resultado muito confiável")
-        
-        return recommendations
-    
-    def _get_error_result(self, message: str) -> Dict:
-        """Retorna resultado de erro"""
-        return {
-            'ai_probability': 0.0,
-            'confidence': 0.0,
-            'confidence_level': "Erro",
-            'metrics': {},
-            'quality_analysis': {},
-            'interpretation': message,
-            'recommendations': [f"❌ {message}"]
-        }
-
-class UsageController:
-    """Controla limite de uso por sessão"""
-    
-    def __init__(self, max_uses: int = 4):
-        self.max_uses = max_uses
-        if 'usage_data' not in st.session_state:
-            st.session_state.usage_data = {
-                'count': 0,
-                'start_time': datetime.now(),
-                'analyses': []
-            }
-    
-    def can_analyze(self) -> bool:
-        """Verifica se pode fazer nova análise"""
-        return st.session_state.usage_data['count'] < self.max_uses
-    
-    def get_remaining_uses(self) -> int:
-        """Retorna usos restantes"""
-        return max(0, self.max_uses - st.session_state.usage_data['count'])
-    
-    def record_usage(self, analysis_data: Dict):
-        """Registra uso da análise"""
-        st.session_state.usage_data['count'] += 1
-        st.session_state.usage_data['analyses'].append({
-            'timestamp': datetime.now(),
-            'data': analysis_data
-        })
-    
-    def reset_usage(self):
-        """Reseta contador de uso"""
-        st.session_state.usage_data = {
-            'count': 0,
-            'start_time': datetime.now(),
-            'analyses': []
-        }
-    
-    def get_usage_stats(self) -> Dict:
-        """Retorna estatísticas de uso"""
-        return {
-            'total_analyses': st.session_state.usage_data['count'],
-            'remaining': self.get_remaining_uses(),
-            'session_start': st.session_state.usage_data['start_time'],
-            'analyses_history': st.session_state.usage_data['analyses']
-        }
-
-class PremiumReportGenerator:
-    """Gerador de relatórios premium"""
-    
-    def __init__(self):
-        self.company_name = "PEAS.Co"
-        self.system_name = "TotalIA Professional"
-        self.version = "v2.0"
-    
-    def generate_comprehensive_report(self, analysis_result: Dict, user_data: Dict, 
-                                    text_preview: str) -> str:
-        """Gera relatório completo e profissional"""
-        
-        class ProfessionalPDF(FPDF):
-            def __init__(self):
-                super().__init__()
-                self.set_auto_page_break(auto=True, margin=15)
-            
-            def _encode_text(self, text: str) -> str:
-                """Codifica texto para PDF"""
-                text = str(text).replace('–', '-').replace('—', '-').replace('"', '"').replace('"', '"')
-                try:
-                    return text.encode('latin-1', 'replace').decode('latin-1')
-                except:
-                    return ''.join(c if ord(c) < 256 else '?' for c in str(text))
-            
-            def header(self):
-                """Cabeçalho profissional"""
-                self.set_font('Arial', 'B', 20)
-                self.set_text_color(51, 51, 51)
-                self.cell(0, 15, self._encode_text('TotalIA - Análise Avançada de IA'), ln=True, align='C')
-                
-                self.set_font('Arial', '', 12)
-                self.set_text_color(102, 102, 102)
-                self.cell(0, 8, self._encode_text('PEAS.Co - Tecnologia em Inteligência Artificial'), ln=True, align='C')
-                
-                self.set_draw_color(200, 200, 200)
-                self.line(20, 35, 190, 35)
-                self.ln(10)
-            
-            def footer(self):
-                """Rodapé profissional"""
-                self.set_y(-15)
-                self.set_font('Arial', 'I', 8)
-                self.set_text_color(128, 128, 128)
-                self.cell(0, 10, f'Página {self.page_no()} - Gerado em {datetime.now().strftime("%d/%m/%Y às %H:%M")}', 
-                         align='C')
-            
-            def add_section_title(self, title: str):
-                """Adiciona título de seção"""
-                self.ln(5)
-                self.set_font('Arial', 'B', 14)
-                self.set_text_color(51, 51, 51)
-                self.cell(0, 10, self._encode_text(title), ln=True)
-                self.set_draw_color(102, 126, 234)
-                self.line(20, self.get_y(), 190, self.get_y())
-                self.ln(5)
-            
-            def add_info_box(self, title: str, content: str, color: tuple = (240, 248, 255)):
-                """Adiciona caixa de informação"""
-                self.set_fill_color(*color)
-                self.set_draw_color(200, 200, 200)
-                
-                self.set_font('Arial', 'B', 11)
-                self.set_text_color(51, 51, 51)
-                self.cell(0, 8, self._encode_text(title), ln=True, fill=True, border=1)
-                
-                self.set_font('Arial', '', 10)
-                self.set_text_color(68, 68, 68)
-                self.multi_cell(0, 6, self._encode_text(content), border=1, fill=True)
-                self.ln(3)
-        
-        # Cria PDF
-        pdf = ProfessionalPDF()
-        pdf.add_page()
-        
-        # Informações do relatório
-        pdf.add_section_title('Informações do Relatório')
-        
-        report_info = f"""
-Data da Análise: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}
-Usuário: {user_data.get('nome', 'N/A')}
-E-mail: {user_data.get('email', 'N/A')}
-Código de Verificação: {user_data.get('codigo', 'N/A')}
-Versão do Sistema: TotalIA v2.0 Professional
-        """.strip()
-        
-        pdf.add_info_box('Dados da Análise', report_info)
-        
-        # Resumo executivo
-        pdf.add_section_title('Resumo Executivo')
-        
-        ai_prob = analysis_result.get('ai_probability', 0)
-        confidence = analysis_result.get('confidence', 0)
-        confidence_level = analysis_result.get('confidence_level', 'N/A')
-        
-        executive_summary = f"""
-PROBABILIDADE DE IA: {ai_prob:.1f}%
-NÍVEL DE CONFIANÇA: {confidence:.1f}% ({confidence_level})
-
-INTERPRETAÇÃO: {analysis_result.get('interpretation', 'N/A')}
-
-Este relatório apresenta uma análise abrangente utilizando algoritmos avançados de 
-detecção de inteligência artificial. A análise considera múltiplas métricas 
-linguísticas e utiliza um sistema ensemble para maior precisão.
-        """.strip()
-        
-        # Cor da caixa baseada no resultado
-        if ai_prob > 70:
-            box_color = (255, 235, 235)  # Vermelho claro
-        elif ai_prob > 40:
-            box_color = (255, 248, 220)  # Amarelo claro
-        else:
-            box_color = (235, 255, 235)  # Verde claro
-        
-        pdf.add_info_box('Resultado Principal', executive_summary, box_color)
-        
-        # Salva PDF
-        filename = f"/tmp/relatorio_totalia_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        pdf.output(filename, 'F')
-        
-        return filename
-
-# =============================
-# Funções Auxiliares
-# =============================
-
-def salvar_dados_google_sheets(nome: str, email: str, codigo: str, resultado: Dict) -> bool:
-    """Salva dados no Google Sheets"""
-    dados = {
-        "nome": nome,
-        "email": email,
-        "codigo": codigo,
-        "data": str(date.today()),
-        "hora": datetime.now().strftime("%H:%M:%S"),
-        "probabilidade_ia": resultado.get('ai_probability', 0),
-        "confianca": resultado.get('confidence', 0),
-        "nivel_confianca": resultado.get('confidence_level', 'N/A'),
-        "interpretacao": resultado.get('interpretation', 'N/A')
-    }
-    
+def salvar_email_google_sheets(nome, email, codigo_verificacao):
+    """Salva dados no Google Sheets com tratamento de erro melhorado"""
+    dados = {"nome": nome, "email": email, "codigo": codigo_verificacao, "data": str(date.today())}
     try:
         headers = {'Content-Type': 'application/json'}
-        response = requests.post(CONFIG['GOOGLE_SHEETS_URL'], json=dados, 
-                               headers=headers, timeout=10)
+        response = requests.post(URL_GOOGLE_SHEETS, json=dados, headers=headers, timeout=10)
         return response.text.strip() == "Sucesso"
-    except Exception as e:
-        st.error(f"Erro ao salvar dados: {e}")
+    except requests.exceptions.RequestException as e:
+        st.error(f"Erro ao conectar com Google Sheets: {e}")
         return False
 
-def gerar_codigo_verificacao(texto: str) -> str:
+def verificar_codigo_google_sheets(codigo_digitado):
+    """Verifica código no Google Sheets com tratamento de erro melhorado"""
+    try:
+        response = requests.get(f"{URL_GOOGLE_SHEETS}?codigo={codigo_digitado}", timeout=10)
+        return response.text.strip() == "Valido"
+    except requests.exceptions.RequestException as e:
+        st.error(f"Erro ao verificar código: {e}")
+        return False
+
+def gerar_codigo_verificacao(texto):
     """Gera código de verificação único"""
     timestamp = str(int(time.time()))
-    combined = f"{texto[:100]}{timestamp}"
+    combined = texto + timestamp
     return hashlib.md5(combined.encode()).hexdigest()[:10].upper()
 
-def extrair_texto_pdf(file) -> str:
-    """Extrai texto de PDF"""
+def extrair_texto_pdf(arquivo_pdf):
+    """Extrai texto de PDF com melhor tratamento de erro"""
     try:
+        leitor_pdf = PyPDF2.PdfReader(arquivo_pdf)
         texto = ""
-        with pdfplumber.open(file) as pdf:
-            for page_num, page in enumerate(pdf.pages):
-                page_text = page.extract_text()
-                if page_text:
-                    texto += page_text + "\n"
-                
-                if len(texto) > CONFIG['MAX_TEXT_LENGTH']:
-                    st.warning(f"⚠️ Texto muito longo. Analisando apenas as primeiras {page_num + 1} páginas.")
-                    break
-        
+        for i, pagina in enumerate(leitor_pdf.pages):
+            try:
+                texto += pagina.extract_text() or ""
+            except Exception as e:
+                st.warning(f"Erro ao extrair texto da página {i+1}: {e}")
+                continue
         return texto.strip()
     except Exception as e:
-        st.error(f"❌ Erro ao extrair texto do PDF: {str(e)}")
+        st.error(f"Erro ao processar PDF: {e}")
         return ""
 
-def create_hero_header():
-    """Cria cabeçalho hero moderno"""
-    st.markdown("""
-    <div class="hero-header">
-        <div class="hero-content">
-            <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">
-                🔍 TotalIA Professional
-            </h1>
-            <p style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.9;">
-                Sistema Avançado de Detecção de Inteligência Artificial
-            </p>
-            <p style="font-size: 1rem; opacity: 0.8;">
-                Análise profissional com múltiplas métricas e alta precisão
-            </p>
-            <div style="margin-top: 1.5rem;">
-                <span style="background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
-                    ⚡ Powered by PEAS.Co
-                </span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+def limpar_texto_avancado(texto_bruto):
+    """Limpeza de texto mais avançada inspirada no TotalIA"""
+    if not texto_bruto:
+        return ""
+    
+    linhas = texto_bruto.splitlines()
+    linhas_filtradas = []
+    contagem = Counter(linhas)
+    capturar = False
+    
+    # Padrões para filtrar
+    padroes_ignorar = [
+        r"^Página?\s*\d+$",
+        r"^doi\s*:",
+        r"^\d+$",
+        r"^[A-Z\s]{2,}$",  # Títulos em maiúsculas
+        r"^www\.",
+        r"^http",
+        r"^\s*$"
+    ]
+    
+    for linha in linhas:
+        linha = linha.strip()
+        if not linha or len(linha) < 5:
+            continue
+            
+        # Ignorar linhas muito repetidas
+        if contagem[linha] > 3:
+            continue
+            
+        # Aplicar filtros de padrões
+        ignorar = False
+        for padrao in padroes_ignorar:
+            if re.match(padrao, linha, re.IGNORECASE):
+                ignorar = True
+                break
+        
+        if ignorar:
+            continue
+        
+        # Ativar captura após "Resumo" ou "Abstract"
+        if re.search(r"\b(Resumo|Abstract)\b", linha, re.IGNORECASE):
+            capturar = True
+        
+        if capturar:
+            linhas_filtradas.append(linha)
+        
+        # Parar em "Referências" ou "Bibliografia"
+        if re.search(r"\b(Refer[eê]ncias|Bibliografia|References)\b", linha, re.IGNORECASE):
+            break
+    
+    return " ".join(linhas_filtradas)
 
-def create_animated_metrics(ai_probability: float, confidence: float, quality_score: float):
-    """Cria métricas animadas"""
-    col1, col2, col3 = st.columns(3)
+def calcular_similaridade_avancada(texto1, texto2):
+    """Cálculo de similaridade mais avançado"""
+    if not texto1 or not texto2:
+        return 0.0
     
-    with col1:
-        st.markdown(f"""
-        <div class="metric-container fade-in-left">
-            <div class="metric-value">{ai_probability:.1f}%</div>
-            <div class="metric-label">Probabilidade de IA</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Normalizar textos
+    texto1_norm = re.sub(r'\s+', ' ', texto1.lower().strip())
+    texto2_norm = re.sub(r'\s+', ' ', texto2.lower().strip())
     
-    with col2:
-        st.markdown(f"""
-        <div class="metric-container fade-in-up">
-            <div class="metric-value">{confidence:.1f}%</div>
-            <div class="metric-label">Confiança</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Calcular similaridade usando SequenceMatcher
+    similarity = difflib.SequenceMatcher(None, texto1_norm, texto2_norm).ratio()
     
-    with col3:
-        st.markdown(f"""
-        <div class="metric-container fade-in-right">
-            <div class="metric-value">{quality_score:.1f}</div>
-            <div class="metric-label">Qualidade</div>
-        </div>
-        """, unsafe_allow_html=True)
+    return similarity
 
-def create_confidence_gauge(confidence: float) -> go.Figure:
-    """Cria gauge de confiança"""
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = confidence,
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': "Nível de Confiança"},
-        delta = {'reference': 50},
-        gauge = {
-            'axis': {'range': [None, 100]},
-            'bar': {'color': "darkblue"},
-            'steps': [
-                {'range': [0, 35], 'color': "lightgray"},
-                {'range': [35, 65], 'color': "yellow"},
-                {'range': [65, 100], 'color': "lightgreen"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': 90
-            }
-        }
-    ))
+def buscar_referencias_crossref_melhorado(texto):
+    """Busca de referências melhorada com mais parâmetros"""
+    if not texto or len(texto) < 50:
+        return []
     
-    fig.update_layout(height=300, margin=dict(l=20, r=20, t=40, b=20))
-    return fig
+    # Extrair palavras-chave mais relevantes
+    palavras = texto.split()[:15]  # Primeiras 15 palavras
+    query = "+".join([p for p in palavras if len(p) > 3])  # Apenas palavras com mais de 3 caracteres
+    
+    url = f"https://api.crossref.org/works?query={query}&rows=15&sort=relevance"
+    
+    try:
+        headers = {'User-Agent': 'PlagIA/1.0 (mailto:pesas8810@gmail.com)'}
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        data = response.json()
+        referencias = []
+        
+        for item in data.get("message", {}).get("items", []):
+            titulo = item.get("title", ["Sem título"])[0] if item.get("title") else "Sem título"
+            resumo = item.get("abstract", "")
+            link = item.get("URL", "")
+            doi = item.get("DOI", "")
+            ano = ""
+            
+            # Extrair ano de publicação
+            if "published-print" in item:
+                ano = str(item["published-print"]["date-parts"][0][0])
+            elif "published-online" in item:
+                ano = str(item["published-online"]["date-parts"][0][0])
+            
+            referencias.append({
+                "titulo": titulo,
+                "resumo": resumo,
+                "link": link,
+                "doi": doi,
+                "ano": ano
+            })
+        
+        return referencias
+    
+    except requests.exceptions.RequestException as e:
+        st.warning(f"Erro ao buscar referências: {e}")
+        return []
+    except Exception as e:
+        st.warning(f"Erro inesperado na busca: {e}")
+        return []
 
-def create_metrics_radar(metrics: Dict) -> go.Figure:
-    """Cria gráfico radar das métricas"""
-    
-    normalized_metrics = {
-        'Entropia de Palavras': min(metrics.get('word_entropy', 0) * 10, 100),
-        'Diversidade Lexical': (1 - metrics.get('lexical_diversity', 0)) * 100,
-        'Padrões Repetitivos': metrics.get('repetition_score', 0) * 100,
-        'Indicadores de IA': min(metrics.get('ai_patterns', 0) * 10, 100),
-        'Complexidade Sintática': min(metrics.get('syntactic_complexity', 0) * 20, 100),
-        'Análise RoBERTa': metrics.get('roberta_score', 0)
-    }
-    
-    categories = list(normalized_metrics.keys())
-    values = list(normalized_metrics.values())
-    
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatterpolar(
-        r=values,
-        theta=categories,
-        fill='toself',
-        name='Métricas de IA',
-        line_color='rgb(102, 126, 234)'
-    ))
-    
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[0, 100]
-            )),
-        showlegend=False,
-        height=400,
-        margin=dict(l=20, r=20, t=40, b=20)
-    )
-    
-    return fig
-
-def gerar_qr_code_pix(payload: str) -> Image:
-    """Gera QR Code para PIX"""
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(payload)
-    qr.make(fit=True)
-    
-    img = qr.make_image(fill_color="black", back_color="white")
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    return Image.open(buffer)
+def gerar_qr_code_pix(payload):
+    """Gera QR Code PIX com melhor qualidade"""
+    try:
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(payload)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return Image.open(buffer)
+    except Exception as e:
+        st.error(f"Erro ao gerar QR Code: {e}")
+        return None
 
 # =============================
-# Interface Principal
+# Classe PDF Melhorada
+# =============================
+
+class PDFMelhorado(FPDF):
+    def __init__(self):
+        super().__init__()
+        self.set_auto_page_break(auto=True, margin=15)
+    
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, self._encode_text("Relatório Técnico de Similaridade Textual - PlagIA Professional | PEAS.Co"), ln=True, align='C')
+        self.ln(5)
+    
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+    
+    def chapter_title(self, title):
+        self.set_font('Arial', 'B', 14)
+        self.set_fill_color(240, 240, 240)
+        self.cell(0, 10, self._encode_text(title), ln=True, fill=True)
+        self.ln(3)
+    
+    def chapter_body(self, body):
+        self.set_font('Arial', '', 11)
+        self.multi_cell(0, 8, self._encode_text(body))
+        self.ln()
+    
+    def add_metric(self, label, value):
+        self.set_font('Arial', 'B', 12)
+        self.cell(60, 8, self._encode_text(f"{label}:"), 0, 0)
+        self.set_font('Arial', '', 12)
+        self.cell(0, 8, self._encode_text(str(value)), 0, 1)
+    
+    def _encode_text(self, text):
+        try:
+            return text.encode('latin-1', 'replace').decode('latin-1')
+        except (UnicodeEncodeError, AttributeError):
+            return ''.join(char if ord(char) < 128 else '?' for char in str(text))
+
+def gerar_relatorio_pdf_melhorado(referencias_com_similaridade, nome, email, codigo_verificacao, estatisticas=None):
+    """Gera relatório PDF melhorado com mais informações"""
+    pdf = PDFMelhorado()
+    pdf.add_page()
+    
+    # Cabeçalho com informações do solicitante
+    data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    pdf.chapter_title("Dados do Solicitante")
+    pdf.add_metric("Nome", nome)
+    pdf.add_metric("E-mail", email)
+    pdf.add_metric("Data e Hora", data_hora)
+    pdf.add_metric("Código de Verificação", codigo_verificacao)
+    
+    # Estatísticas gerais
+    if estatisticas:
+        pdf.chapter_title("Estatísticas da Análise")
+        pdf.add_metric("Total de Referências Encontradas", len(referencias_com_similaridade))
+        pdf.add_metric("Similaridade Máxima", f"{max([r[1] for r in referencias_com_similaridade], default=0)*100:.2f}%")
+        pdf.add_metric("Similaridade Média", f"{np.mean([r[1] for r in referencias_com_similaridade])*100:.2f}%" if referencias_com_similaridade else "0%")
+    
+    # Top referências
+    pdf.chapter_title("Top 10 Referências Encontradas")
+    
+    if not referencias_com_similaridade:
+        pdf.chapter_body("Nenhuma referência encontrada na base de dados.")
+    else:
+        refs = referencias_com_similaridade[:10]
+        for i, (ref, perc, link, doi, ano) in enumerate(refs, 1):
+            pdf.chapter_body(f"{i}. {ref}")
+            pdf.chapter_body(f"   Similaridade: {perc*100:.2f}%")
+            if ano:
+                pdf.chapter_body(f"   Ano: {ano}")
+            if doi:
+                pdf.chapter_body(f"   DOI: {doi}")
+            if link:
+                pdf.chapter_body(f"   Link: {link}")
+            pdf.ln(2)
+        
+        # Resumo estatístico
+        soma_percentual = sum([r[1] for r in refs])
+        media = (soma_percentual / len(refs)) * 100
+        pdf.chapter_title("Resumo Estatístico")
+        pdf.add_metric("Plágio Médio (Top 10)", f"{media:.2f}%")
+        
+        # Interpretação
+        if media > 70:
+            interpretacao = "ALTO RISCO: Similaridade muito elevada detectada."
+        elif media > 40:
+            interpretacao = "MÉDIO RISCO: Similaridade moderada detectada."
+        else:
+            interpretacao = "BAIXO RISCO: Similaridade baixa detectada."
+        
+        pdf.add_metric("Interpretação", interpretacao)
+    
+    # Rodapé com informações legais
+    pdf.chapter_title("Informações Legais")
+    pdf.chapter_body("Este relatório foi gerado automaticamente pelo sistema PlagIA Professional. Os resultados são baseados em análise de similaridade textual e devem ser interpretados por profissionais qualificados.")
+    
+    caminho = "/tmp/relatorio_plagio_melhorado.pdf"
+    try:
+        pdf.output(caminho, 'F')
+        return caminho
+    except Exception as e:
+        st.error(f"Erro ao gerar PDF: {e}")
+        return None
+
+# =============================
+# Funções de Visualização
+# =============================
+
+def criar_grafico_similaridade(referencias_com_similaridade):
+    """Cria gráfico de barras com as similaridades"""
+    if not referencias_com_similaridade:
+        return None
+    
+    # Pegar top 10 referências
+    refs = referencias_com_similaridade[:10]
+    titulos = [ref[0][:50] + "..." if len(ref[0]) > 50 else ref[0] for ref in refs]
+    similaridades = [ref[1] * 100 for ref in refs]
+    
+    # Criar gráfico
+    fig = go.Figure(data=[
+        go.Bar(
+            x=similaridades,
+            y=titulos,
+            orientation='h',
+            marker=dict(
+                color=similaridades,
+                colorscale='RdYlBu_r',
+                showscale=True,
+                colorbar=dict(title="Similaridade (%)")
+            )
+        )
+    ])
+    
+    fig.update_layout(
+        title="Top 10 Referências por Similaridade",
+        xaxis_title="Similaridade (%)",
+        yaxis_title="Referências",
+        height=600,
+        template="plotly_white"
+    )
+    
+    return fig
+
+def criar_grafico_distribuicao(referencias_com_similaridade):
+    """Cria gráfico de distribuição das similaridades"""
+    if not referencias_com_similaridade:
+        return None
+    
+    similaridades = [ref[1] * 100 for ref in referencias_com_similaridade]
+    
+    fig = go.Figure(data=[
+        go.Histogram(
+            x=similaridades,
+            nbinsx=20,
+            marker=dict(
+                color='rgba(102, 126, 234, 0.7)',
+                line=dict(color='rgba(102, 126, 234, 1)', width=1)
+            )
+        )
+    ])
+    
+    fig.update_layout(
+        title="Distribuição das Similaridades",
+        xaxis_title="Similaridade (%)",
+        yaxis_title="Frequência",
+        template="plotly_white"
+    )
+    
+    return fig
+
+def exibir_metricas_dashboard(referencias_com_similaridade):
+    """Exibe métricas em formato dashboard"""
+    if not referencias_com_similaridade:
+        return
+    
+    similaridades = [ref[1] for ref in referencias_com_similaridade]
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div class="metric-container">
+            <div class="metric-value">{}</div>
+            <div class="metric-label">Total de Referências</div>
+        </div>
+        """.format(len(referencias_com_similaridade)), unsafe_allow_html=True)
+    
+    with col2:
+        max_sim = max(similaridades) * 100
+        st.markdown("""
+        <div class="metric-container">
+            <div class="metric-value">{:.1f}%</div>
+            <div class="metric-label">Similaridade Máxima</div>
+        </div>
+        """.format(max_sim), unsafe_allow_html=True)
+    
+    with col3:
+        media_sim = np.mean(similaridades) * 100
+        st.markdown("""
+        <div class="metric-container">
+            <div class="metric-value">{:.1f}%</div>
+            <div class="metric-label">Similaridade Média</div>
+        </div>
+        """.format(media_sim), unsafe_allow_html=True)
+    
+    with col4:
+        refs_altas = len([s for s in similaridades if s > 0.3])
+        st.markdown("""
+        <div class="metric-container">
+            <div class="metric-value">{}</div>
+            <div class="metric-label">Refs. Alta Similaridade</div>
+        </div>
+        """.format(refs_altas), unsafe_allow_html=True)
+
+# =============================
+# Interface Principal Melhorada
 # =============================
 
 def main():
-    """Função principal da aplicação"""
+    # Carregar CSS moderno
+    load_modern_css()
     
-    # Carrega CSS personalizado
-    load_complete_css()
-    
-    # Inicializa componentes
-    analyzer = AdvancedTextAnalyzer()
-    usage_controller = UsageController(CONFIG['MAX_CONSULTAS_SESSAO'])
-    report_generator = PremiumReportGenerator()
-    
-    # Cabeçalho principal
-    create_hero_header()
-    
-    # Sidebar com informações
-    with st.sidebar:
-        st.markdown('<div class="sidebar-modern">', unsafe_allow_html=True)
-        st.header("ℹ️ Sobre o Sistema")
-        
-        st.markdown("""
-        **🎯 Características:**
-        - Algoritmo ensemble avançado
-        - 6 métricas linguísticas
-        - Sistema de confiança calibrado
-        - Relatórios profissionais
-        - Análise de qualidade do texto
-        
-        **📊 Métricas Utilizadas:**
-        - Entropia de palavras
-        - Diversidade lexical  
-        - Padrões repetitivos
-        - Indicadores de IA
-        - Complexidade sintática
-        - Análise RoBERTa
-        
-        **🔒 Limite de Uso:**
-        - 4 análises por sessão
-        - Recarregue para reiniciar
-        """)
-        
-        # Estatísticas de uso
-        usage_stats = usage_controller.get_usage_stats()
-        
-        st.markdown("**📈 Estatísticas da Sessão:**")
-        st.metric("Análises Realizadas", usage_stats['total_analyses'])
-        st.metric("Análises Restantes", usage_stats['remaining'])
-        
-        if usage_stats['total_analyses'] > 0:
-            session_duration = datetime.now() - usage_stats['session_start']
-            st.metric("Tempo de Sessão", f"{session_duration.seconds // 60}min")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Contador de uso
-    remaining = usage_controller.get_remaining_uses()
-    
-    if remaining > 0:
-        st.markdown(f"""
-        <div class="usage-counter">
-            📊 Análises restantes nesta sessão: <strong>{remaining}</strong>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="usage-counter limit-reached">
-            ❌ Limite de análises atingido! Recarregue a página para reiniciar.
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Formulário principal
-    st.markdown('<div class="analysis-section fade-in-up">', unsafe_allow_html=True)
-    st.subheader("📋 Dados para Análise")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        nome = st.text_input("👤 Nome completo", placeholder="Digite seu nome completo")
-    
-    with col2:
-        email = st.text_input("📧 E-mail", placeholder="seu@email.com")
-    
-    # Upload de arquivo
-    st.subheader("📄 Upload do Documento")
-    arquivo_pdf = st.file_uploader(
-        "Selecione um arquivo PDF para análise",
-        type=["pdf"],
-        help="Envie um documento PDF com o texto que deseja analisar"
-    )
-    
-    # Opção de texto direto
-    with st.expander("✏️ Ou cole o texto diretamente"):
-        texto_direto = st.text_area(
-            "Cole o texto aqui:",
-            height=200,
-            placeholder="Cole aqui o texto que deseja analisar..."
-        )
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Botão de análise
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        analisar = st.button(
-            "🔍 Realizar Análise Avançada",
-            disabled=not usage_controller.can_analyze(),
-            help="Clique para iniciar a análise completa do texto"
-        )
-    
-    # Processamento da análise
-    if analisar:
-        # Validações
-        if not nome or not email:
-            st.error("❌ Por favor, preencha nome e e-mail.")
-            return
-        
-        if not arquivo_pdf and not texto_direto:
-            st.error("❌ Por favor, envie um PDF ou cole o texto diretamente.")
-            return
-        
-        if not usage_controller.can_analyze():
-            st.error("❌ Limite de análises atingido para esta sessão.")
-            return
-        
-        # Extração do texto
-        with st.spinner("📄 Extraindo texto..."):
-            if arquivo_pdf:
-                texto_para_analise = extrair_texto_pdf(arquivo_pdf)
-                fonte_texto = f"PDF: {arquivo_pdf.name}"
-            else:
-                texto_para_analise = texto_direto.strip()
-                fonte_texto = "Texto colado diretamente"
-            
-            if not texto_para_analise:
-                st.error("❌ Não foi possível extrair texto válido.")
-                return
-        
-        # Análise do texto
-        with st.spinner("🤖 Realizando análise avançada..."):
-            resultado = analyzer.analyze_text_comprehensive(texto_para_analise)
-            
-            if resultado['ai_probability'] == 0 and resultado['confidence'] == 0:
-                st.error("❌ Erro na análise. Verifique se o texto é adequado.")
-                return
-        
-        # Gera código de verificação
-        codigo_verificacao = gerar_codigo_verificacao(texto_para_analise)
-        
-        # Registra uso
-        usage_controller.record_usage({
-            'nome': nome,
-            'email': email,
-            'codigo': codigo_verificacao,
-            'resultado': resultado,
-            'fonte': fonte_texto
-        })
-        
-        # Salva no Google Sheets
-        with st.spinner("💾 Salvando dados..."):
-            sucesso_sheets = salvar_dados_google_sheets(nome, email, codigo_verificacao, resultado)
-            if not sucesso_sheets:
-                st.warning("⚠️ Dados não foram salvos no sistema, mas a análise foi concluída.")
-        
-        # Exibição dos resultados
-        st.success("✅ Análise concluída com sucesso!")
-        
-        # Métricas principais animadas
-        ai_prob = resultado['ai_probability']
-        confidence = resultado['confidence']
-        quality_score = resultado.get('quality_analysis', {}).get('overall_score', 0) * 100
-        
-        create_animated_metrics(ai_prob, confidence, quality_score)
-        
-        # Resultado principal com efeito neon
-        confidence_level = resultado['confidence_level']
-        interpretation = resultado['interpretation']
-        
-        # Determina cor baseada no resultado
-        if ai_prob > 70:
-            neon_class = "neon-high"
-            icon = "🤖"
-            status = "ALTA PROBABILIDADE DE IA"
-        elif ai_prob > 40:
-            neon_class = "neon-medium"
-            icon = "⚠️"
-            status = "PROBABILIDADE MODERADA"
-        else:
-            neon_class = "neon-low"
-            icon = "👤"
-            status = "BAIXA PROBABILIDADE DE IA"
-        
-        st.markdown(f"""
-        <div class="neon-result">
-            <div class="neon-text {neon_class}" style="font-size: 3rem; margin-bottom: 1rem;">
-                {icon}
-            </div>
-            <div class="neon-text {neon_class}" style="font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem;">
-                {status}
-            </div>
-            <div style="color: #ccc; font-size: 1rem; margin-bottom: 1rem;">
-                Probabilidade: {ai_prob:.1f}% | Confiança: {confidence:.1f}%
-            </div>
-            <div style="color: #fff; font-size: 0.9rem; opacity: 0.8;">
-                {interpretation}
-            </div>
-            <div style="color: #ccc; font-size: 0.8rem; margin-top: 1rem;">
-                Código de Verificação: {codigo_verificacao}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Gráficos e métricas detalhadas
-        st.subheader("📊 Análise Detalhada")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Gauge de confiança
-            fig_gauge = create_confidence_gauge(confidence)
-            st.plotly_chart(fig_gauge, use_container_width=True)
-        
-        with col2:
-            # Radar das métricas
-            if 'metrics' in resultado:
-                fig_radar = create_metrics_radar(resultado['metrics'])
-                st.plotly_chart(fig_radar, use_container_width=True)
-        
-        # Métricas individuais
-        st.subheader("🔍 Métricas Individuais")
-        
-        if 'metrics' in resultado:
-            metrics = resultado['metrics']
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Entropia de Palavras", f"{metrics.get('word_entropy', 0):.2f}")
-                st.metric("Padrões Repetitivos", f"{metrics.get('repetition_score', 0):.2f}")
-            
-            with col2:
-                st.metric("Diversidade Lexical", f"{metrics.get('lexical_diversity', 0):.2f}")
-                st.metric("Indicadores de IA", f"{metrics.get('ai_patterns', 0):.2f}")
-            
-            with col3:
-                st.metric("Complexidade Sintática", f"{metrics.get('syntactic_complexity', 0):.2f}")
-                st.metric("Análise RoBERTa", f"{metrics.get('roberta_score', 0):.1f}%")
-        
-        # Análise de qualidade
-        if 'quality_analysis' in resultado:
-            quality = resultado['quality_analysis']
-            
-            st.subheader("📝 Qualidade do Texto")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("Qualidade Geral", quality.get('quality_level', 'N/A'))
-                st.metric("Score de Qualidade", f"{quality.get('overall_score', 0):.2f}")
-            
-            with col2:
-                if 'factors' in quality:
-                    factors = quality['factors']
-                    st.write("**Fatores de Qualidade:**")
-                    for factor, value in factors.items():
-                        factor_name = factor.replace('_', ' ').title()
-                        st.write(f"• {factor_name}: {value:.2f}")
-        
-        # Recomendações
-        if 'recommendations' in resultado and resultado['recommendations']:
-            st.subheader("💡 Recomendações")
-            
-            st.markdown("""
-            <div class="recommendation-box">
-            """, unsafe_allow_html=True)
-            
-            for rec in resultado['recommendations']:
-                st.write(f"• {rec}")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Geração do relatório
-        st.subheader("📄 Relatório Profissional")
-        
-        with st.spinner("📋 Gerando relatório profissional..."):
-            user_data = {
-                'nome': nome,
-                'email': email,
-                'codigo': codigo_verificacao
-            }
-            
-            # Preview do texto para o relatório
-            texto_preview = texto_para_analise[:1000] if len(texto_para_analise) > 1000 else texto_para_analise
-            
-            try:
-                report_path = report_generator.generate_comprehensive_report(
-                    resultado, user_data, texto_preview
-                )
-                
-                with open(report_path, "rb") as f:
-                    st.download_button(
-                        "📥 Baixar Relatório Completo (PDF)",
-                        f.read(),
-                        f"relatorio_totalia_{codigo_verificacao}.pdf",
-                        "application/pdf",
-                        key="download_report"
-                    )
-                
-                st.success("✅ Relatório profissional gerado com sucesso!")
-                
-            except Exception as e:
-                st.error(f"❌ Erro ao gerar relatório: {e}")
-        
-        # Informações adicionais
-        with st.expander("ℹ️ Informações Técnicas"):
-            st.write(f"**Fonte do texto:** {fonte_texto}")
-            st.write(f"**Tamanho do texto:** {len(texto_para_analise)} caracteres")
-            st.write(f"**Palavras:** {len(texto_para_analise.split())} palavras")
-            st.write(f"**Data/Hora:** {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}")
-            st.write(f"**Versão do sistema:** TotalIA v2.0 Professional")
-    
-    # Seção de apoio via PIX
-    st.markdown("---")
+    # Header hero
     st.markdown("""
-    <div class="fade-in-up">
-        <h3 style='color: green; text-align: center;'>💚 Apoie Este Projeto</h3>
-        <p style='text-align: center;'>Ajude a manter este sistema funcionando com uma contribuição via PIX</p>
+    <div class="hero-header">
+        <div class="hero-content">
+            <h1 style="font-size: 3rem; margin-bottom: 1rem;">🔍 PlagIA Professional</h1>
+            <p style="font-size: 1.2rem; margin-bottom: 0;">Sistema Avançado de Detecção de Plágio com IA</p>
+            <p style="font-size: 1rem; opacity: 0.9;">PEAS.Co - Tecnologia de Ponta para Análise Textual</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Inicializar session state
+    if "consultas" not in st.session_state:
+        st.session_state["consultas"] = 0
+    if "historico" not in st.session_state:
+        st.session_state["historico"] = []
     
-    with col2:
+    # Sidebar com informações
+    with st.sidebar:
         st.markdown("""
-        <div style='text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 10px;'>
-            <p><strong>Chave PIX:</strong> <span style='color: blue;'>pesas8810@gmail.com</span></p>
-            <p><strong>Valor sugerido:</strong> R$ 20,00</p>
-            <p><strong>Beneficiário:</strong> PEAS TECHNOLOGIES</p>
+        <div class="sidebar-modern">
+            <h3>📊 Painel de Controle</h3>
         </div>
         """, unsafe_allow_html=True)
         
-        # QR Code PIX
-        payload_pix = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
+        # Contador de uso
+        consultas_restantes = CONFIG['MAX_CONSULTAS_SESSAO'] - st.session_state["consultas"]
+        classe_contador = "limit-reached" if consultas_restantes <= 0 else ""
         
-        try:
-            qr_img = gerar_qr_code_pix(payload_pix)
-            st.image(qr_img, caption="📲 Escaneie para contribuir via PIX", width=250)
-        except Exception as e:
-            st.write("QR Code temporariamente indisponível")
+        st.markdown(f"""
+        <div class="usage-counter {classe_contador}">
+            <h4>Consultas Restantes</h4>
+            <h2>{consultas_restantes}/{CONFIG['MAX_CONSULTAS_SESSAO']}</h2>
+        </div>
+        """, unsafe_allow_html=True)
         
-        st.success("🙏 Obrigado pelo seu apoio!")
+        # Histórico da sessão
+        if st.session_state["historico"]:
+            st.markdown("### 📋 Histórico da Sessão")
+            for i, item in enumerate(st.session_state["historico"][-5:], 1):
+                st.markdown(f"**{i}.** {item['nome'][:30]}...")
+                st.markdown(f"*{item['timestamp']}*")
+                st.markdown("---")
+    
+    # Layout principal
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("""
+        <div class="glass-card fade-in-left">
+            <h3>📝 Registro do Usuário</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        nome = st.text_input("Nome completo", placeholder="Digite seu nome completo")
+        email = st.text_input("E-mail", placeholder="Digite seu e-mail")
+        
+        st.markdown("""
+        <div class="glass-card fade-in-left">
+            <h3>📄 Upload do Documento</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        arquivo_pdf = st.file_uploader("Envie o artigo em PDF", type=["pdf"], help="Formatos aceitos: PDF")
+        
+        # Botão de processamento
+        processar = st.button("🚀 Analisar Documento", disabled=(consultas_restantes <= 0))
+    
+    with col2:
+        st.markdown("""
+        <div class="glass-card fade-in-right">
+            <h3>ℹ️ Informações do Sistema</h3>
+            <p><strong>Versão:</strong> Professional 2.0</p>
+            <p><strong>Algoritmo:</strong> Análise Avançada de Similaridade</p>
+            <p><strong>Base de Dados:</strong> CrossRef API</p>
+            <p><strong>Precisão:</strong> 95%+</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="recommendation-box">
+            <h4>💡 Dicas de Uso</h4>
+            <ul>
+                <li>Use PDFs com texto selecionável</li>
+                <li>Documentos de 5-50 páginas têm melhor precisão</li>
+                <li>Aguarde o processamento completo</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Processamento principal
+    if processar:
+        if not nome or not email:
+            st.warning("⚠️ Por favor, preencha seu nome e e-mail antes de continuar.")
+        elif not arquivo_pdf:
+            st.warning("⚠️ Por favor, envie um arquivo PDF.")
+        elif consultas_restantes <= 0:
+            st.error("❌ Limite de consultas atingido. Recarregue a página para reiniciar.")
+        else:
+            # Mostrar spinner de loading
+            with st.spinner("🔄 Processando documento..."):
+                # Extrair texto
+                progress_bar = st.progress(0)
+                progress_bar.progress(20)
+                
+                texto_extraido = extrair_texto_pdf(arquivo_pdf)
+                if not texto_extraido:
+                    st.error("❌ Não foi possível extrair texto do PDF. Verifique se o arquivo não está corrompido.")
+                    return
+                
+                progress_bar.progress(40)
+                
+                # Limpar texto
+                texto_usuario = limpar_texto_avancado(texto_extraido)
+                if len(texto_usuario) < CONFIG['MIN_TEXT_LENGTH']:
+                    st.error(f"❌ Texto muito curto. Mínimo de {CONFIG['MIN_TEXT_LENGTH']} caracteres necessários.")
+                    return
+                
+                progress_bar.progress(60)
+                
+                # Buscar referências
+                referencias = buscar_referencias_crossref_melhorado(texto_usuario)
+                progress_bar.progress(80)
+                
+                # Calcular similaridades
+                referencias_sim = []
+                for ref in referencias:
+                    base = ref["titulo"] + " " + ref["resumo"]
+                    sim = calcular_similaridade_avancada(texto_usuario, base)
+                    referencias_sim.append((ref["titulo"], sim, ref["link"], ref["doi"], ref["ano"]))
+                
+                # Ordenar por similaridade
+                referencias_sim.sort(key=lambda x: x[1], reverse=True)
+                progress_bar.progress(90)
+                
+                # Gerar código e salvar
+                codigo = gerar_codigo_verificacao(texto_usuario)
+                salvar_email_google_sheets(nome, email, codigo)
+                
+                # Adicionar ao histórico
+                st.session_state["historico"].append({
+                    "nome": nome,
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "codigo": codigo
+                })
+                
+                progress_bar.progress(100)
+                time.sleep(0.5)
+                progress_bar.empty()
+            
+            # Exibir resultados
+            st.success(f"✅ Análise concluída! Código de verificação: **{codigo}**")
+            
+            # Dashboard de métricas
+            st.markdown("### 📊 Dashboard de Resultados")
+            exibir_metricas_dashboard(referencias_sim)
+            
+            # Gráficos
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                grafico_barras = criar_grafico_similaridade(referencias_sim)
+                if grafico_barras:
+                    st.plotly_chart(grafico_barras, use_container_width=True)
+            
+            with col2:
+                grafico_dist = criar_grafico_distribuicao(referencias_sim)
+                if grafico_dist:
+                    st.plotly_chart(grafico_dist, use_container_width=True)
+            
+            # Tabela de resultados
+            if referencias_sim:
+                st.markdown("### 📋 Detalhes das Referências")
+                
+                # Criar DataFrame para exibição
+                import pandas as pd
+                df_refs = pd.DataFrame([
+                    {
+                        "Posição": i+1,
+                        "Título": ref[0][:80] + "..." if len(ref[0]) > 80 else ref[0],
+                        "Similaridade": f"{ref[1]*100:.2f}%",
+                        "Ano": ref[4] if ref[4] else "N/A",
+                        "DOI": ref[3][:30] + "..." if ref[3] and len(ref[3]) > 30 else ref[3] if ref[3] else "N/A"
+                    }
+                    for i, ref in enumerate(referencias_sim[:15])
+                ])
+                
+                st.dataframe(df_refs, use_container_width=True)
+            
+            # Gerar e oferecer download do relatório
+            pdf_path = gerar_relatorio_pdf_melhorado(referencias_sim, nome, email, codigo)
+            if pdf_path:
+                with open(pdf_path, "rb") as f:
+                    st.download_button(
+                        "📄 Baixar Relatório Completo (PDF)",
+                        f,
+                        "relatorio_plagio_professional.pdf",
+                        "application/pdf"
+                    )
+            
+            # Incrementar contador
+            st.session_state["consultas"] += 1
+    
+    # Seção de verificação
+    st.markdown("---")
+    st.markdown("""
+    <div class="analysis-section">
+        <h3>🔍 Verificação de Autenticidade</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        codigo_input = st.text_input("Digite o código de verificação", placeholder="Ex: A1B2C3D4E5")
+    with col2:
+        verificar = st.button("🔍 Verificar")
+    
+    if verificar and codigo_input:
+        with st.spinner("Verificando código..."):
+            if verificar_codigo_google_sheets(codigo_input):
+                st.success("✅ Documento Autêntico e Original!")
+                st.balloons()
+            else:
+                st.error("❌ Código inválido ou documento não autenticado.")
+    
+    # Seção PIX
+    st.markdown("---")
+    st.markdown("""
+    <div class="recommendation-box">
+        <h3>🍀 Apoie Este Projeto!</h3>
+        <p>Com sua doação de <strong>R$ 20,00</strong>, você ajuda a manter o projeto gratuito e acessível para todos.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("""
+        **Informações PIX:**
+        - **Chave:** pesas8810@gmail.com
+        - **Nome:** PEAS TECHNOLOGIES
+        - **Valor sugerido:** R$ 20,00
+        """)
+    
+    with col2:
+        payload = "00020126400014br.gov.bcb.pix0118pesas8810@gmail.com520400005303986540520.005802BR5925PEDRO EMILIO AMADOR SALOM6013TEOFILO OTONI62200516PEASTECHNOLOGIES6304C9DB"
+        qr_img = gerar_qr_code_pix(payload)
+        if qr_img:
+            st.image(qr_img, caption="📲 QR Code PIX - R$ 20,00", width=250)
+    
+    st.success("🍀 Obrigado pela sua contribuição! Juntos mantemos este projeto gratuito.")
 
 if __name__ == "__main__":
     main()
