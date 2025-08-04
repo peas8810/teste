@@ -466,7 +466,7 @@ def main():
             else: st.error("❌ Código inválido.")
 
     # Seção PIX
-    s # QR Code para contribuição PIX
+   # QR Code para contribuição PIX
             pix_key = "pesas8810@gmail.com"
             qr_img = qrcode.make(f"pix:{pix_key}")
             buf_qr = BytesIO()
