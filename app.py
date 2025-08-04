@@ -466,13 +466,14 @@ def main():
             else: st.error("❌ Código inválido.")
 
     # Seção PIX
-    st.markdown("---")
-    st.markdown("""
-    <div class="recommendation-box">
-        <h3>🍀 Apoie o Projeto</h3>
-        <p><strong>PIX:</strong> pesas8810@gmail.com | <strong>Valor:</strong> R$ 20,00</p>
-    </div>
-    """,unsafe_allow_html=True)
+    s # QR Code para contribuição PIX
+            pix_key = "pesas8810@gmail.com"
+            qr_img = qrcode.make(f"pix:{pix_key}")
+            buf_qr = BytesIO()
+            qr_img.save(buf_qr, format="PNG")
+            st.image(buf_qr.getvalue(), caption="💚 Apoie o Projeto via Pix", width=150)
+            st.markdown(f"**Chave Pix:** {pix_key}")
+
 
 if __name__ == "__main__":
     main()
