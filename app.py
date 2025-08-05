@@ -42,9 +42,9 @@ URL_GOOGLE_SHEETS = (
 # Configurações globais otimizadas
 CONFIG = {
     'MAX_CONSULTAS_SESSAO': 4,
-    'MIN_TEXT_LENGTH': 500,
-    'MAX_TEXT_LENGTH': 50000,
-    'MIN_WORDS': 50,
+    'MIN_TEXT_LENGTH': 50,
+    'MAX_TEXT_LENGTH': 500000,
+    'MIN_WORDS': 5,
     'TIMEOUT_API': 15,
     'MAX_REFS': 20,
     'CACHE_TTL': 3600,
