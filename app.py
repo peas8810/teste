@@ -201,7 +201,7 @@ def buscar_referencias_crossref_otimizado(texto: str) -> List[Dict]:
         refs = []
         for item in items:
             titulo = item.get('title', ['Sem título'])[0]
-            resumo = item.get('abstract', '')[:50]
+            resumo = item.get('abstract', '')[:35]
             link = item.get('URL', '')
             doi = item.get('DOI', '')
             ano = ''
